@@ -3,6 +3,7 @@ require "fast_mcp"
 module LlamaBotRails
     module Tools
         class RailsConsoleTool < FastMcp::Tool
+            tool_name "rails_console"
             description "Run a Rails console through MCP Tool calling"
 
             arguments do 
