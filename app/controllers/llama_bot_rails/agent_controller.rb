@@ -18,7 +18,7 @@ module LlamaBotRails
 
         # GET /agent/chat
         def chat
-            render json: { result: "Hello, world!" }
+            # Render chat.html.erb
         end
 
         private 
