@@ -1,4 +1,3 @@
-
 Gem::Specification.new do |spec|
   require_relative "lib/llama_bot_rails/version"
   spec.name        = "llama_bot_rails"
@@ -17,4 +16,5 @@ Gem::Specification.new do |spec|
   end
   
   spec.add_dependency "rails", "~> 7.0"
+  spec.add_dependency "actioncable", "~> 7.0"
 end

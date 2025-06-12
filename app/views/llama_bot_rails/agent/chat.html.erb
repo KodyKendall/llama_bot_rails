@@ -48,6 +48,8 @@
       background-color: #1976d2;
     }
   </style>
+  <%= javascript_include_tag "llama_bot_rails/application" %>
+  <%= action_cable_meta_tag %>
 </head>
 <body>
   <div class="chat-container">
@@ -62,6 +64,21 @@
   </div>
 
   <script>
+    // Initialize ActionCable connection
+    const consumer = LlamaBotRails.cable;
+    const subscription = consumer.subscriptions.create('LlamaBotRails::ChatChannel', {
+      connected() {
+        console.log('Connected to chat channel');
+      },
+      disconnected() {
+        console.log('Disconnected from chat channel');
+      },
+      received(data) {
+        // Handle incoming messages from the server
+        addMessage(data.message, 'bot');
+      }
+    });
+
     function sendMessage() {
       const input = document.getElementById('message-input');
       const message = input.value.trim();
@@ -71,24 +88,8 @@
         addMessage(message, 'user');
         input.value = '';
 
-        // Send message to server
-        fetch('/llama_bot/agent/command', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.content
-          },
-          body: JSON.stringify({ command: message })
-        })
-        .then(response => response.json())
-        .then(data => {
-          // Add bot response to chat
-          addMessage(data.result, 'bot');
-        })
-        .catch(error => {
-          console.error('Error:', error);
-          addMessage('Sorry, there was an error processing your message.', 'bot');
-        });
+        // Send message through ActionCable
+        subscription.send({ message: message });
       }
     }
 
