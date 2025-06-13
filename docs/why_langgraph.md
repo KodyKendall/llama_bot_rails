@@ -75,16 +75,19 @@ llama_bot_rails is our gem that wires LangGraph into your Rails app. It provides
 - Agent input injection (e.g., current route, user, model state)
 - Extensibility via custom injectors, tools, and planners
 
-We believe Rails is the best framework for building full-stack web apps — so it should also be the best platform for building agent-native software.
+We noticed Rails devs were either avoiding LangGraph or rolling their own orchestration systems from scratch. We believe LangGraph is the missing piece, and this gem is how you plug it into Rails the right way.
+
+Rails is the best framework for empowering devs to build full-stack web apps -- it's also the best framework for empowering intelligent and capable agents.
 
 ## Final Word
 
 LangGraph is the brain. Rails is the body.
 
-This gem is the nervous system.
+This gem is the nervous system connecting the two.
 
-We're not building a chatbot.
-We're building an intelligent operator — one that can build with you inside your Rails app.
+This isn't a chatbot.
+
+This is an intelligent operator for your Rails app.
 
 If you believe Rails is still the best full-stack framework... (it is)
 ... then it's also the best environment for embodied AI agents.
