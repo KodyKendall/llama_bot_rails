@@ -100,8 +100,6 @@ module LlamaBotRails
         # data["user_message"] = data["message"]
         # data["selected_element"] = data["selectedElement"] 
         # data["user_llamapress_api_token"] = current_user.api_token
-        
-        message = data["message"]
 
         #TODO: Add in hooks & filters here, so that the developer can customize and add their own logic.s
         # # Add site's system_prompt to the data if it exists
@@ -124,8 +122,20 @@ module LlamaBotRails
         # end
         
         # Forward the processed data to the LlamaBot Backend Socket
-        # byebug
-        send_to_external_application(data)
+        message = data["message"]
+
+        # 1. Instantiate the builder
+        builder = state_builder_class.new(
+          params: {message: message},                                   # {message: "user message"} raw JS payload
+          context: { thread_id: current_user&.id || "global_thread_id" }         # any Rails goodies, like users, user account info, other context from Rails that might be needed.
+        )
+
+        # 2. Construct the LangGraph-ready state
+        state_payload = builder.build                     # => { messages: [...] }
+
+        # 3. Ship it over the existing WebSocket
+        send_to_external_application(state_payload)
+
         # Log the incoming WebSocket data
         Rails.logger.info "Got message from Javascript LlamaBot Frontend: #{data.inspect}"
       rescue => e
@@ -150,6 +160,10 @@ module LlamaBotRails
     end
 
     private
+
+    def state_builder_class
+      LlamaBotRails.config.state_builder_class.constantize
+    end
 
     def setup_external_websocket(connection_id)
       Thread.current[:connection_id] = connection_id
@@ -230,12 +244,14 @@ module LlamaBotRails
         end
 
         Rails.logger.info "Received from external WebSocket: #{message_content}"
-
+        
         begin
           parsed_message = JSON.parse(message_content)
+          
           case parsed_message["type"]
-          when "ai_message"
+          when "ai"
             # Add any additional handling for write_code messages here
+            formatted_message = { message: {type: "ai", content: parsed_message['content']} }.to_json
           when "error"
             Rails.logger.error "---------Received error message!----------"
             response = parsed_message['content']
@@ -245,7 +261,7 @@ module LlamaBotRails
           when "pong"
             Rails.logger.debug "Received pong response"
             # Tell llamabot frontend that we've received a pong response, and we're still connected
-            formatted_message = { message: {type: "external_ws_pong"} }.to_json
+            formatted_message = { message: {type: "pong"} }.to_json
           end
         rescue JSON::ParserError => e
           Rails.logger.error "Failed to parse message as JSON: #{e.message}"
