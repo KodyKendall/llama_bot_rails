@@ -17,4 +17,6 @@ Gem::Specification.new do |spec|
   
   spec.add_dependency "rails", "~> 7.0"
   spec.add_dependency "actioncable", "~> 7.0"
+  spec.add_dependency "async-websocket"
+  spec.add_dependency "async-http"
 end
