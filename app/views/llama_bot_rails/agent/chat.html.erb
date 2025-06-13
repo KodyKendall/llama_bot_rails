@@ -28,6 +28,18 @@
       background-color: #f5f5f5;
       margin-right: 20%;
     }
+    .error-message {
+      background-color: #ffebee;
+      color: #c62828;
+      margin-right: 20%;
+      border-left: 4px solid #c62828;
+    }
+    .pong-message {
+      text-align: center;
+      font-size: 24px;
+      color: #e91e63;
+      margin: 10px 0;
+    }
     .input-container {
       display: flex;
       gap: 10px;
@@ -75,7 +87,18 @@
       },
       received(data) {
         // Handle incoming messages from the server
-        addMessage(data.message, 'bot');
+        const parsedData = JSON.parse(data).message;
+        switch(parsedData.type) {
+          case "ai":
+            addMessage(parsedData.content, 'bot');
+            break;
+          case "error":
+            addMessage(parsedData.content, 'error');
+            break;
+          case "pong":
+            addMessage('❤️', 'pong');
+            break;
+        }
       }
     });
 
@@ -92,7 +115,7 @@
         let formattedMessage = {
           message: message
         }
-
+        
         // Send message through ActionCable
         subscription.send(formattedMessage);
       }
