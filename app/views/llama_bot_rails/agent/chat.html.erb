@@ -265,12 +265,18 @@
 
       try {
         const response = await fetch(`/llama_bot/agent/chat-history/${threadId}`);
-        const messages = await response.json();
-        console.log('Loaded messages:', messages);  // Debug log
+        const threadState = await response.json();
+        console.log('Loaded thread state:', threadState);  // Debug log
         
-        if (Array.isArray(messages)) {
+        if (Array.isArray(threadState) && threadState.length > 0) {
+          // Get the messages array from the first state object
+          const messages = threadState[0].messages || [];
+          console.log('Processing messages:', messages);  // Debug log
+          
           messages.forEach(message => {
-            addMessage(message.content, message.type);
+            if (message && message.content) {
+              addMessage(message.content, message.type === 'human' ? 'user' : 'bot');
+            }
           });
         }
 
