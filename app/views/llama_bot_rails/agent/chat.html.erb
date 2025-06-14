@@ -565,6 +565,17 @@
           return;
         }
         
+        // checkpoint_id in LangGraph checkpoints are monotonically increasing, so we know their order based on checkpoint_id
+        threads.sort((a, b) => {
+          const checkpoint_id_a = a.state[2].configurable.checkpoint_id;
+          const checkpoint_id_b = b.state[2].configurable.checkpoint_id;
+          if (checkpoint_id_a === checkpoint_id_b) {
+            return a.thread_id.localeCompare(b.thread_id);
+          } else {
+            return checkpoint_id_b.localeCompare(checkpoint_id_a);
+          }
+        });
+        
         threads.forEach(thread => {
           const threadElement = createThreadElement(thread);
           threadsList.appendChild(threadElement);
