@@ -88,8 +88,49 @@
     .chat-header {
       display: flex;
       align-items: center;
+      justify-content: space-between;
       margin-bottom: 20px;
       height: var(--header-height);
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+    }
+
+    .compose-button {
+      background-color: var(--accent-color);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 8px 16px;
+      cursor: pointer;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: background-color 0.2s;
+    }
+
+    .compose-button:hover {
+      background-color: #1976d2;
+    }
+
+    .welcome-message {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--text-secondary);
+    }
+
+    .welcome-message h2 {
+      color: var(--text-primary);
+      margin-bottom: 10px;
+      font-size: 24px;
+    }
+
+    .welcome-message p {
+      font-size: 16px;
+      margin: 0;
     }
 
     .logo-container {
@@ -303,16 +344,24 @@
 
     <div class="chat-container">
       <div class="chat-header">
-        <button class="toggle-sidebar" id="toggle-sidebar" title="Toggle sidebar">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M15 18l-6-6 6-6" />
-          </svg>
-        </button>
-        <div class="logo-container">
-          <img src="https://service-jobs-images.s3.us-east-2.amazonaws.com/7rl98t1weu387r43il97h6ipk1l7" alt="LlamaBot Logo" class="logo">
-          <div id="connectionStatusIconForLlamaBot" class="connection-status status-green"></div>
+        <div class="header-left">
+          <button class="toggle-sidebar" id="toggle-sidebar" title="Toggle sidebar">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M15 18l-6-6 6-6" />
+            </svg>
+          </button>
+          <div class="logo-container">
+            <img src="https://service-jobs-images.s3.us-east-2.amazonaws.com/7rl98t1weu387r43il97h6ipk1l7" alt="LlamaBot Logo" class="logo">
+            <div id="connectionStatusIconForLlamaBot" class="connection-status status-green"></div>
+          </div>
+          <h1>LlamaBot Chat</h1>
         </div>
-        <h1>LlamaBot Chat</h1>
+        <button class="compose-button" onclick="startNewConversation()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 5v14M5 12h14"/>
+          </svg>
+          New Chat
+        </button>
       </div>
       <div class="chat-messages" id="chat-messages">
         <!-- Messages will be added here dynamically -->
@@ -438,14 +487,8 @@
         
         if (!threads || threads.length === 0) {
           console.log('No threads available');
-          // Create a default thread
-          const defaultThread = {
-            thread_id: 'global_thread_id',
-            title: 'New Conversation'
-          };
-          const threadElement = createThreadElement(defaultThread);
-          threadsList.appendChild(threadElement);
-          loadThread(defaultThread.thread_id);  // Automatically load the default thread
+          // Start with a blank conversation
+          startNewConversation();
           return;
         }
         
@@ -454,21 +497,12 @@
           threadsList.appendChild(threadElement);
         });
 
-        // Load the first thread by default
-        if (threads.length > 0) {
-          const firstThreadId = threads[0].thread_id || threads[0].id;
-          loadThread(firstThreadId);
-        }
+        // Start with a blank conversation instead of loading the first thread
+        startNewConversation();
       } catch (error) {
         console.error('Error loading threads:', error);
-        // Create a default thread on error
-        const defaultThread = {
-          thread_id: 'global_thread_id',
-          title: 'New Conversation'
-        };
-        const threadElement = createThreadElement(defaultThread);
-        document.getElementById('threads-list').appendChild(threadElement);
-        loadThread(defaultThread.thread_id);
+        // Start with a blank conversation on error
+        startNewConversation();
       }
     }
 
@@ -527,11 +561,42 @@
       }
     }
 
+    function startNewConversation() {
+      currentThreadId = null;
+      const messagesDiv = document.getElementById('chat-messages');
+      messagesDiv.innerHTML = '';
+      
+      // Show welcome message
+      showWelcomeMessage();
+      
+      // Clear active thread selection
+      document.querySelectorAll('.thread-item').forEach(item => {
+        item.classList.remove('active');
+      });
+    }
+
+    function showWelcomeMessage() {
+      const messagesDiv = document.getElementById('chat-messages');
+      const welcomeDiv = document.createElement('div');
+      welcomeDiv.className = 'welcome-message';
+      welcomeDiv.innerHTML = `
+        <h2>Welcome</h2>
+        <p>What's on the agenda?</p>
+      `;
+      messagesDiv.appendChild(welcomeDiv);
+    }
+
     function sendMessage() {
       const input = document.getElementById('message-input');
       const message = input.value.trim();
       
       if (message) {
+        // Clear welcome message if it exists
+        const welcomeMessage = document.querySelector('.welcome-message');
+        if (welcomeMessage) {
+          welcomeMessage.remove();
+        }
+        
         addMessage(message, 'user');
         input.value = '';
 
