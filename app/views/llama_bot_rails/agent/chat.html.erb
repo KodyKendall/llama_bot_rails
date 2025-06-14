@@ -583,7 +583,28 @@
       const threadElement = document.createElement('div');
       threadElement.className = 'thread-item';
       const threadId = thread.thread_id || thread.id;
-      threadElement.textContent = threadId;
+      
+      // Parse timestamp from thread ID and format it nicely
+      let displayText;
+      if (threadId && threadId.match(/^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$/)) {
+        // Parse the timestamp format: YYYY-MM-DD_HH-MM-SS
+        const [datePart, timePart] = threadId.split('_');
+        const [year, month, day] = datePart.split('-');
+        const [hour, minute, second] = timePart.split('-');
+        
+        const date = new Date(year, month - 1, day, hour, minute, second);
+        displayText = date.toLocaleString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true
+        });
+      } else {
+        displayText = threadId || 'New Chat';
+      }
+      
+      threadElement.textContent = displayText;
       threadElement.dataset.threadId = threadId;
       threadElement.onclick = () => {
         console.log('Clicked thread with ID:', threadId);  // Debug log
@@ -673,9 +694,23 @@
         addMessage(message, 'user');
         input.value = '';
 
+        // Generate timestamp-based thread ID if we don't have one
+        let threadId = currentThreadId;
+        if (!threadId || threadId === 'global_thread_id') {
+          // Create timestamp in format: YYYY-MM-DD_HH-MM-SS
+          const now = new Date();
+          threadId = now.getFullYear() + '-' + 
+                    String(now.getMonth() + 1).padStart(2, '0') + '-' + 
+                    String(now.getDate()).padStart(2, '0') + '_' + 
+                    String(now.getHours()).padStart(2, '0') + '-' + 
+                    String(now.getMinutes()).padStart(2, '0') + '-' + 
+                    String(now.getSeconds()).padStart(2, '0');
+          currentThreadId = threadId;
+        }
+
         const messageData = {
           message: message,
-          thread_id: currentThreadId || 'global_thread_id'
+          thread_id: threadId
         };
         
         console.log('Sending message with data:', messageData);  // Debug log
