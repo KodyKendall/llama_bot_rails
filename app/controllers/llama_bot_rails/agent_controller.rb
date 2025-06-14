@@ -1,12 +1,13 @@
 require 'llama_bot_rails/llama_bot'
 module LlamaBotRails
     class AgentController < ActionController::Base
-        # before_action :authenticate_agent! #TODO: Figure out how we'll authenticate the agent
+        skip_before_action :verify_authenticity_token, only: [:command]
+        before_action :authenticate_agent!, only: [:command]
 
         # POST /agent/command
         def command
             input = params[:command]
-            result = eval(input)
+            result = safety_eval(input)
             render json: { result: result.inspect }
         rescue => e
             render json: { error: e.class.name, message: e.message }, status: :unprocessable_entity
@@ -61,14 +62,11 @@ module LlamaBotRails
         end
 
         def authenticate_agent!
-            expected_token = ENV["LLAMABOT_AGENT_TOKEN"] || Rails.application.credentials.llamabot_agent_token
-            raise "LLAMABOT_AGENT_TOKEN is missing—set ENV or credentials" if expected_token.blank?
-
-            request_token = request.headers["Authorization"]&.split("Bearer ")&.last
-
-            if expected_token.blank? || request_token != expected_token
-                render json: { error: "Unauthorized" }, status: :unauthorized
-            end
+            auth_header = request.headers["Authorization"]
+            token = auth_header&.split("Bearer ")&.last  # Extract token after "Bearer "
+            @session_payload = Rails.application.message_verifier(:llamabot_ws).verify(token)
+        rescue ActiveSupport::MessageVerifier::InvalidSignature
+            head :unauthorized
         end
     end
 end

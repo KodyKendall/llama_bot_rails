@@ -10,9 +10,16 @@ module LlamaBotRails
         
         @connection_id = SecureRandom.uuid
         Rails.logger.info "Created new connection with ID: #{@connection_id}"
-        
+        Rails.logger.info "[LlamaBot] Secure API token genereated."
+
         # Use a begin/rescue block to catch thread creation errors
       begin
+
+        @api_token = Rails.application.message_verifier(:llamabot_ws).generate(
+          { session_id: SecureRandom.uuid },
+          expires_in: 30.minutes
+        )
+
         @worker = Thread.new do
             Thread.current[:connection_id] = @connection_id
           Thread.current.abort_on_exception = true  # This will help surface errors
@@ -127,7 +134,7 @@ module LlamaBotRails
         # 1. Instantiate the builder
         builder = state_builder_class.new(
           params: { message: data["message"] },
-          context: { thread_id: data["thread_id"] }
+          context: { thread_id: data["thread_id"], api_token: @api_token }
         )
 
         # 2. Construct the LangGraph-ready state
