@@ -403,6 +403,8 @@
   </style>
   <%= javascript_include_tag "llama_bot_rails/application" %>
   <%= action_cable_meta_tag %>
+  <!-- Add Snarkdown CDN -->
+  <script src="https://unpkg.com/snarkdown/dist/snarkdown.umd.js"></script>
 </head>
 <body>
   <div class="app-container">
@@ -681,57 +683,14 @@
       }
     }
 
-    function parseMarkdown(text) {
-      // Escape HTML first
-      text = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      
-      // Headers (# ## ### #### ##### ######)
-      text = text.replace(/^######\s+(.+)$/gm, '<h6>$1</h6>');
-      text = text.replace(/^#####\s+(.+)$/gm, '<h5>$1</h5>');
-      text = text.replace(/^####\s+(.+)$/gm, '<h4>$1</h4>');
-      text = text.replace(/^###\s+(.+)$/gm, '<h3>$1</h3>');
-      text = text.replace(/^##\s+(.+)$/gm, '<h2>$1</h2>');
-      text = text.replace(/^#\s+(.+)$/gm, '<h1>$1</h1>');
-      
-      // Code blocks (triple backticks)
-      text = text.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
-      
-      // Inline code (single backticks)
-      text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
-      
-      // Bold text (**text** or __text__)
-      text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-      text = text.replace(/__(.*?)__/g, '<strong>$1</strong>');
-      
-      // Italic text (*text* or _text_)
-      text = text.replace(/\*(.*?)\*/g, '<em>$1</em>');
-      text = text.replace(/_(.*?)_/g, '<em>$1</em>');
-      
-      // Line breaks
-      text = text.replace(/\n/g, '<br>');
-      
-      // Simple lists (lines starting with - or *)
-      text = text.replace(/^[\-\*]\s+(.+)$/gm, '<li>$1</li>');
-      text = text.replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>');
-      
-      // Numbered lists (lines starting with numbers)
-      text = text.replace(/^\d+\.\s+(.+)$/gm, '<li>$1</li>');
-      text = text.replace(/(<li>.*<\/li>)/s, function(match) {
-        if (match.includes('<ul>')) return match;
-        return '<ol>' + match + '</ol>';
-      });
-      
-      return text;
-    }
-
     function addMessage(text, sender) {
       const messagesDiv = document.getElementById('chat-messages');
       const messageDiv = document.createElement('div');
       messageDiv.className = `message ${sender}-message`;
       
-      // Parse markdown for bot messages, keep plain text for user messages
+      // Parse markdown for bot messages using Snarkdown, keep plain text for user messages
       if (sender === 'bot') {
-        messageDiv.innerHTML = parseMarkdown(text);
+        messageDiv.innerHTML = snarkdown(text);
       } else {
         messageDiv.textContent = text;
       }
