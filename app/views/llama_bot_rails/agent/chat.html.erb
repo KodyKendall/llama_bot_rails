@@ -11,6 +11,9 @@
       --accent-color: #2196f3;
       --error-color: #f44336;
       --success-color: #4caf50;
+      --sidebar-width: 250px;
+      --sidebar-collapsed-width: 60px;
+      --header-height: 80px;
     }
 
     body {
@@ -23,14 +26,34 @@
     .app-container {
       display: flex;
       height: 100vh;
+      position: relative;
+      overflow: hidden;  /* Prevent content from causing horizontal scroll */
     }
 
     .threads-sidebar {
-      width: 250px;
+      width: var(--sidebar-width);
       background-color: var(--bg-secondary);
       padding: 20px;
       border-right: 1px solid #404040;
       overflow-y: auto;
+      transition: width 0.3s ease;
+      position: relative;
+      flex-shrink: 0;  /* Prevent sidebar from shrinking */
+      min-width: var(--sidebar-width);  /* Ensure minimum width */
+    }
+
+    .threads-sidebar.collapsed {
+      width: var(--sidebar-collapsed-width);
+      min-width: var(--sidebar-collapsed-width);  /* Update min-width when collapsed */
+      padding: 20px 10px;
+    }
+
+    .threads-sidebar.collapsed .thread-item {
+      display: none;
+    }
+
+    .threads-sidebar.collapsed h2 {
+      display: none;
     }
 
     .thread-item {
@@ -39,6 +62,9 @@
       border-radius: 4px;
       cursor: pointer;
       transition: background-color 0.2s;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .thread-item:hover {
@@ -54,18 +80,44 @@
       display: flex;
       flex-direction: column;
       padding: 20px;
+      transition: margin-left 0.3s ease;
+      min-width: 0;  /* Allow container to shrink below its content size */
+      overflow: hidden;  /* Prevent content from causing horizontal scroll */
     }
 
     .chat-header {
       display: flex;
       align-items: center;
       margin-bottom: 20px;
+      height: var(--header-height);
     }
 
     .logo {
       width: 40px;
       height: 40px;
       margin-right: 10px;
+    }
+
+    .toggle-sidebar {
+      background: none;
+      border: none;
+      color: var(--text-primary);
+      cursor: pointer;
+      padding: 8px;
+      margin-right: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.3s ease;
+    }
+
+    .toggle-sidebar:hover {
+      background-color: var(--bg-secondary);
+      border-radius: 4px;
+    }
+
+    .toggle-sidebar.collapsed {
+      transform: rotate(180deg);
     }
 
     .chat-messages {
@@ -83,6 +135,7 @@
       padding: 8px;
       border-radius: 4px;
       max-width: 80%;
+      word-wrap: break-word;
     }
 
     .user-message {
@@ -112,6 +165,7 @@
     .input-container {
       display: flex;
       gap: 10px;
+      padding: 10px 0;
     }
 
     #message-input {
@@ -136,13 +190,36 @@
     button:hover {
       background-color: #1976d2;
     }
+
+    @media (max-width: 768px) {
+      .threads-sidebar {
+        position: fixed;
+        height: 100vh;
+        z-index: 1000;
+        transform: translateX(0);
+        transition: transform 0.3s ease;
+      }
+
+      .threads-sidebar.collapsed {
+        transform: translateX(-100%);
+        width: var(--sidebar-width);
+      }
+
+      .chat-container {
+        margin-left: 0;
+      }
+
+      .message {
+        max-width: 90%;
+      }
+    }
   </style>
   <%= javascript_include_tag "llama_bot_rails/application" %>
   <%= action_cable_meta_tag %>
 </head>
 <body>
   <div class="app-container">
-    <div class="threads-sidebar">
+    <div class="threads-sidebar" id="threads-sidebar">
       <h2>Conversations</h2>
       <div id="threads-list">
         <!-- Threads will be added here dynamically -->
@@ -151,6 +228,11 @@
 
     <div class="chat-container">
       <div class="chat-header">
+        <button class="toggle-sidebar" id="toggle-sidebar" title="Toggle sidebar">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M15 18l-6-6 6-6" />
+          </svg>
+        </button>
         <img src="https://service-jobs-images.s3.us-east-2.amazonaws.com/7rl98t1weu387r43il97h6ipk1l7" alt="LlamaBot Logo" class="logo">
         <h1>LlamaBot Chat</h1>
       </div>
@@ -166,6 +248,7 @@
 
   <script>
     let currentThreadId = null;
+    let isSidebarCollapsed = false;
 
     // Initialize ActionCable connection
     const consumer = LlamaBotRails.cable;
@@ -191,6 +274,16 @@
             break;
         }
       }
+    });
+
+    // Toggle sidebar
+    document.getElementById('toggle-sidebar').addEventListener('click', function() {
+      const sidebar = document.getElementById('threads-sidebar');
+      const toggleButton = this;
+      isSidebarCollapsed = !isSidebarCollapsed;
+      
+      sidebar.classList.toggle('collapsed');
+      toggleButton.classList.toggle('collapsed');
     });
 
     async function loadThreads() {
