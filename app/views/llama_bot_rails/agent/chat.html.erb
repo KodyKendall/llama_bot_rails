@@ -3,59 +3,136 @@
 <head>
   <title>LlamaBot Chat</title>
   <style>
+    :root {
+      --bg-primary: #1a1a1a;
+      --bg-secondary: #2d2d2d;
+      --text-primary: #ffffff;
+      --text-secondary: #b3b3b3;
+      --accent-color: #2196f3;
+      --error-color: #f44336;
+      --success-color: #4caf50;
+    }
+
+    body {
+      background-color: var(--bg-primary);
+      color: var(--text-primary);
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    }
+
+    .app-container {
+      display: flex;
+      height: 100vh;
+    }
+
+    .threads-sidebar {
+      width: 250px;
+      background-color: var(--bg-secondary);
+      padding: 20px;
+      border-right: 1px solid #404040;
+      overflow-y: auto;
+    }
+
+    .thread-item {
+      padding: 10px;
+      margin-bottom: 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+
+    .thread-item:hover {
+      background-color: #404040;
+    }
+
+    .thread-item.active {
+      background-color: var(--accent-color);
+    }
+
     .chat-container {
-      max-width: 800px;
-      margin: 0 auto;
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
       padding: 20px;
     }
-    .chat-messages {
-      height: 400px;
-      border: 1px solid #ccc;
-      padding: 10px;
-      overflow-y: auto;
+
+    .chat-header {
+      display: flex;
+      align-items: center;
       margin-bottom: 20px;
     }
+
+    .logo {
+      width: 40px;
+      height: 40px;
+      margin-right: 10px;
+    }
+
+    .chat-messages {
+      flex-grow: 1;
+      border: 1px solid #404040;
+      border-radius: 8px;
+      padding: 20px;
+      overflow-y: auto;
+      margin-bottom: 20px;
+      background-color: var(--bg-secondary);
+    }
+
     .message {
       margin-bottom: 10px;
       padding: 8px;
       border-radius: 4px;
+      max-width: 80%;
     }
+
     .user-message {
-      background-color: #e3f2fd;
-      margin-left: 20%;
+      background-color: var(--accent-color);
+      margin-left: auto;
     }
+
     .bot-message {
-      background-color: #f5f5f5;
-      margin-right: 20%;
+      background-color: #404040;
+      margin-right: auto;
     }
+
     .error-message {
-      background-color: #ffebee;
-      color: #c62828;
-      margin-right: 20%;
-      border-left: 4px solid #c62828;
+      background-color: var(--error-color);
+      color: white;
+      margin-right: auto;
+      border-left: 4px solid #d32f2f;
     }
+
     .pong-message {
       text-align: center;
       font-size: 24px;
       color: #e91e63;
       margin: 10px 0;
     }
+
     .input-container {
       display: flex;
       gap: 10px;
     }
+
     #message-input {
       flex-grow: 1;
-      padding: 8px;
+      padding: 12px;
+      border: 1px solid #404040;
+      border-radius: 4px;
+      background-color: var(--bg-secondary);
+      color: var(--text-primary);
     }
+
     button {
-      padding: 8px 16px;
-      background-color: #2196f3;
+      padding: 12px 24px;
+      background-color: var(--accent-color);
       color: white;
       border: none;
       border-radius: 4px;
       cursor: pointer;
+      transition: background-color 0.2s;
     }
+
     button:hover {
       background-color: #1976d2;
     }
@@ -64,29 +141,43 @@
   <%= action_cable_meta_tag %>
 </head>
 <body>
-  <div class="chat-container">
-    <h1>LlamaBot Chat</h1>
-    <div class="chat-messages" id="chat-messages">
-      <!-- Messages will be added here dynamically -->
+  <div class="app-container">
+    <div class="threads-sidebar">
+      <h2>Conversations</h2>
+      <div id="threads-list">
+        <!-- Threads will be added here dynamically -->
+      </div>
     </div>
-    <div class="input-container">
-      <input type="text" id="message-input" placeholder="Type your message...">
-      <button onclick="sendMessage()">Send</button>
+
+    <div class="chat-container">
+      <div class="chat-header">
+        <img src="https://service-jobs-images.s3.us-east-2.amazonaws.com/7rl98t1weu387r43il97h6ipk1l7" alt="LlamaBot Logo" class="logo">
+        <h1>LlamaBot Chat</h1>
+      </div>
+      <div class="chat-messages" id="chat-messages">
+        <!-- Messages will be added here dynamically -->
+      </div>
+      <div class="input-container">
+        <input type="text" id="message-input" placeholder="Type your message...">
+        <button onclick="sendMessage()">Send</button>
+      </div>
     </div>
   </div>
 
   <script>
+    let currentThreadId = null;
+
     // Initialize ActionCable connection
     const consumer = LlamaBotRails.cable;
     const subscription = consumer.subscriptions.create('LlamaBotRails::ChatChannel', {
       connected() {
         console.log('Connected to chat channel');
+        loadThreads();
       },
       disconnected() {
         console.log('Disconnected from chat channel');
       },
       received(data) {
-        // Handle incoming messages from the server
         const parsedData = JSON.parse(data).message;
         switch(parsedData.type) {
           case "ai":
@@ -102,22 +193,65 @@
       }
     });
 
+    async function loadThreads() {
+      try {
+        const response = await fetch('/llama_bot/agent/threads');
+        const threads = await response.json();
+        const threadsList = document.getElementById('threads-list');
+        threadsList.innerHTML = '';
+        
+        threads.forEach(thread => {
+          const threadElement = document.createElement('div');
+          threadElement.className = 'thread-item';
+          threadElement.textContent = thread.title || `Thread ${thread.id}`;
+          threadElement.onclick = () => loadThread(thread.id);
+          threadsList.appendChild(threadElement);
+        });
+      } catch (error) {
+        console.error('Error loading threads:', error);
+      }
+    }
+
+    async function loadThread(threadId) {
+      currentThreadId = threadId;
+      const messagesDiv = document.getElementById('chat-messages');
+      messagesDiv.innerHTML = '';
+
+      try {
+        const response = await fetch(`/llama_bot/agent/chat-history/${threadId}`);
+        const messages = await response.json();
+        
+        messages.forEach(message => {
+          addMessage(message.content, message.type);
+        });
+
+        // Update active thread in sidebar
+        document.querySelectorAll('.thread-item').forEach(item => {
+          item.classList.remove('active');
+          if (item.textContent.includes(threadId)) {
+            item.classList.add('active');
+          }
+        });
+      } catch (error) {
+        console.error('Error loading chat history:', error);
+        addMessage('Error loading chat history', 'error');
+      }
+    }
+
     function sendMessage() {
       const input = document.getElementById('message-input');
       const message = input.value.trim();
       
       if (message) {
-        // Add user message to chat
         addMessage(message, 'user');
         input.value = '';
 
-        //NOTE: This should match the agent's state object that will be fed into LangGraph.
-        let formattedMessage = {
-          message: message
-        }
+        const messageData = {
+          message: message,
+          thread_id: currentThreadId || 'global_thread_id'
+        };
         
-        // Send message through ActionCable
-        subscription.send(formattedMessage);
+        subscription.send(messageData);
       }
     }
 
@@ -130,7 +264,6 @@
       messagesDiv.scrollTop = messagesDiv.scrollHeight;
     }
 
-    // Allow sending message with Enter key
     document.getElementById('message-input').addEventListener('keypress', function(e) {
       if (e.key === 'Enter') {
         sendMessage();

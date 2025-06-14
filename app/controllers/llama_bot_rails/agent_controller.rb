@@ -1,3 +1,4 @@
+require 'llama_bot_rails/llama_bot'
 module LlamaBotRails
     class AgentController < ApplicationController
         protect_from_forgery with: :null_session
@@ -19,6 +20,27 @@ module LlamaBotRails
         # GET /agent/chat
         def chat
             # Render chat.html.erb
+        end
+
+        def threads
+            begin
+                threads = LlamaBotRails::LlamaBot.get_threads
+                render json: threads
+            rescue => e
+                Rails.logger.error "Error in threads action: #{e.message}"
+                render json: { error: "Failed to fetch threads" }, status: :internal_server_error
+            end
+        end
+
+        def chat_history
+            begin
+                thread_id = params[:thread_id]
+                history = LlamaBotRails::LlamaBot.get_chat_history(thread_id)
+                render json: history
+            rescue => e
+                Rails.logger.error "Error in chat_history action: #{e.message}"
+                render json: { error: "Failed to fetch chat history" }, status: :internal_server_error
+            end
         end
 
         private 

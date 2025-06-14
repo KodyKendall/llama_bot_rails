@@ -126,12 +126,12 @@ module LlamaBotRails
 
         # 1. Instantiate the builder
         builder = state_builder_class.new(
-          params: {message: message},                                   # {message: "user message"} raw JS payload
-          context: { thread_id: current_user&.id || "global_thread_id" }         # any Rails goodies, like users, user account info, other context from Rails that might be needed.
+          params: { message: data["message"] },
+          context: { thread_id: data["thread_id"] }
         )
 
         # 2. Construct the LangGraph-ready state
-        state_payload = builder.build                     # => { messages: [...] }
+        state_payload = builder.build
 
         # 3. Ship it over the existing WebSocket
         send_to_external_application(state_payload)
