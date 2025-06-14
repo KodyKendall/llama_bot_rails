@@ -32,7 +32,7 @@ That’s where LangGraph comes in.
 
 ## What is LangGraph?
 
-LangGraph is a stateful, structured framework for agent orchestration. It lets you build agents as directed acyclic graphs (DAGs), where each node can:
+LangGraph is a stateful, structured framework for agent orchestration. It lets you build agents as directed acyclic graphs (DAGs), (also, with cycles!) where each node can:
 - Call an LLM
 - Use a tool (e.g., Rails console, DB lookup, file edit)
 - Reflect on previous steps
@@ -69,7 +69,7 @@ Prompt-only systems:
 
 ## Why We Built llama_bot_rails
 
-llama_bot_rails is our gem that wires LangGraph into your Rails app. It provides:
+llama_bot_rails is our gem that wires LangGraph into Ruby on Rails applications. It provides:
 - WebSocket-based communication with a LangGraph backend
 - A Rails-native chat UI
 - Agent input injection (e.g., current route, user, model state)
@@ -77,7 +77,7 @@ llama_bot_rails is our gem that wires LangGraph into your Rails app. It provides
 
 We noticed Rails devs were either avoiding LangGraph or rolling their own orchestration systems from scratch. We believe LangGraph is the missing piece, and this gem is how you plug it into Rails the right way.
 
-Rails is the best framework for empowering devs to build full-stack web apps -- it's also the best framework for empowering intelligent and capable agents.
+Rails is the best framework for empowering devs to build full-stack web apps -- it's also the best framework for empowering intelligent and capable agents. We believe Ruby on Rails is the ultimate tool to hand over to increasingly capable, custom agents. This Gem allows you to do just that.
 
 ## Final Word
 
