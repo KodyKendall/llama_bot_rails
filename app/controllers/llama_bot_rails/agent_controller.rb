@@ -1,7 +1,6 @@
 require 'llama_bot_rails/llama_bot'
 module LlamaBotRails
-    class AgentController < ApplicationController
-        protect_from_forgery with: :null_session
+    class AgentController < ActionController::Base
         # before_action :authenticate_agent! #TODO: Figure out how we'll authenticate the agent
 
         # POST /agent/command
@@ -62,7 +61,9 @@ module LlamaBotRails
         end
 
         def authenticate_agent!
-            expected_token = ENV["LLAMABOT_AGENT_TOKEN"]
+            expected_token = ENV["LLAMABOT_AGENT_TOKEN"] || Rails.application.credentials.llamabot_agent_token
+            raise "LLAMABOT_AGENT_TOKEN is missing—set ENV or credentials" if expected_token.blank?
+
             request_token = request.headers["Authorization"]&.split("Bearer ")&.last
 
             if expected_token.blank? || request_token != expected_token
