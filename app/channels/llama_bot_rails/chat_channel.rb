@@ -175,8 +175,16 @@ module LlamaBotRails
     def setup_external_websocket(connection_id)
       Thread.current[:connection_id] = connection_id
       Rails.logger.info "Setting up external websocket for connection: #{connection_id}"
+      
+      # Check if the WebSocket URL is configured
+      websocket_url = ENV['LLAMABOT_WEBSOCKET_URL']
+      if websocket_url.blank?
+        Rails.logger.warn "LLAMABOT_WEBSOCKET_URL not configured, skipping external WebSocket setup"
+        return
+      end
+      
       # endpoint = Async::HTTP::Endpoint.parse(ENV['LLAMABOT_WEBSOCKET_URL']) 
-      uri = URI(ENV['LLAMABOT_WEBSOCKET_URL'])
+      uri = URI(websocket_url)
       
       uri.scheme = 'wss'
       uri.scheme = 'ws' if ENV['DEVELOPMENT_ENVIRONMENT'] == 'true'

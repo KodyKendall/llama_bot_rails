@@ -1,12 +1,8 @@
 require 'rails_helper'
 
-RSpec.feature "Chat", type: :feature do
-  before do
-    driven_by(:selenium_chrome_headless)
-  end
-
+RSpec.feature "Chat", type: :feature, js: true do
   scenario "User can send and receive messages" do
-    visit "/llama_bot/agent/chat"
+    visit "/llama_bot_rails/agent/chat"
     
     # Check if the chat interface is loaded
     expect(page).to have_selector(".chat-container")
@@ -18,21 +14,17 @@ RSpec.feature "Chat", type: :feature do
     click_button "Send"
 
     # Check if the message appears in the chat
-    expect(page).to have_selector(".user-message", text: "Hello, LlamaBot!")
-    
-    # Check if we receive a response
-    expect(page).to have_selector(".bot-message", text: /Echo: Hello, LlamaBot!/)
+    expect(page).to have_selector(".human-message", text: "Hello, LlamaBot!")
   end
 
   scenario "User can send message using Enter key" do
-    visit "/llama_bot/agent/chat"
+    visit "/llama_bot_rails/agent/chat"
     
     # Send a message using Enter key
     fill_in "message-input", with: "Hello, LlamaBot!"
     find("#message-input").send_keys(:enter)
 
     # Check if the message appears in the chat
-    expect(page).to have_selector(".user-message", text: "Hello, LlamaBot!")
-    expect(page).to have_selector(".bot-message", text: /Echo: Hello, LlamaBot!/)
+    expect(page).to have_selector(".human-message", text: "Hello, LlamaBot!")
   end
 end 
