@@ -35,6 +35,13 @@ module LlamaBotRails
         def chat_history
             begin
                 thread_id = params[:thread_id]
+                Rails.logger.info "Fetching chat history for thread: #{thread_id}"
+                
+                if thread_id == 'undefined' || thread_id.blank?
+                    render json: []
+                    return
+                end
+                
                 history = LlamaBotRails::LlamaBot.get_chat_history(thread_id)
                 render json: history
             rescue => e

@@ -197,22 +197,68 @@
       try {
         const response = await fetch('/llama_bot/agent/threads');
         const threads = await response.json();
+        console.log('Loaded threads:', threads);  // Debug log
+        
         const threadsList = document.getElementById('threads-list');
         threadsList.innerHTML = '';
         
+        if (!threads || threads.length === 0) {
+          console.log('No threads available');
+          // Create a default thread
+          const defaultThread = {
+            thread_id: 'global_thread_id',
+            title: 'New Conversation'
+          };
+          const threadElement = createThreadElement(defaultThread);
+          threadsList.appendChild(threadElement);
+          loadThread(defaultThread.thread_id);  // Automatically load the default thread
+          return;
+        }
+        
         threads.forEach(thread => {
-          const threadElement = document.createElement('div');
-          threadElement.className = 'thread-item';
-          threadElement.textContent = thread.title || `Thread ${thread.id}`;
-          threadElement.onclick = () => loadThread(thread.id);
+          const threadElement = createThreadElement(thread);
           threadsList.appendChild(threadElement);
         });
+
+        // Load the first thread by default
+        if (threads.length > 0) {
+          const firstThreadId = threads[0].thread_id || threads[0].id;
+          loadThread(firstThreadId);
+        }
       } catch (error) {
         console.error('Error loading threads:', error);
+        // Create a default thread on error
+        const defaultThread = {
+          thread_id: 'global_thread_id',
+          title: 'New Conversation'
+        };
+        const threadElement = createThreadElement(defaultThread);
+        document.getElementById('threads-list').appendChild(threadElement);
+        loadThread(defaultThread.thread_id);
       }
     }
 
+    function createThreadElement(thread) {
+      const threadElement = document.createElement('div');
+      threadElement.className = 'thread-item';
+      const threadId = thread.thread_id || thread.id;
+      threadElement.textContent = `Thread ${threadId}`;
+      threadElement.dataset.threadId = threadId;
+      threadElement.onclick = () => {
+        console.log('Clicked thread with ID:', threadId);  // Debug log
+        loadThread(threadId);
+      };
+      return threadElement;
+    }
+
     async function loadThread(threadId) {
+      console.log('Loading thread:', threadId);  // Debug log
+      
+      if (!threadId) {
+        console.error('No thread ID provided');
+        return;
+      }
+      
       currentThreadId = threadId;
       const messagesDiv = document.getElementById('chat-messages');
       messagesDiv.innerHTML = '';
@@ -220,15 +266,18 @@
       try {
         const response = await fetch(`/llama_bot/agent/chat-history/${threadId}`);
         const messages = await response.json();
+        console.log('Loaded messages:', messages);  // Debug log
         
-        messages.forEach(message => {
-          addMessage(message.content, message.type);
-        });
+        if (Array.isArray(messages)) {
+          messages.forEach(message => {
+            addMessage(message.content, message.type);
+          });
+        }
 
         // Update active thread in sidebar
         document.querySelectorAll('.thread-item').forEach(item => {
           item.classList.remove('active');
-          if (item.textContent.includes(threadId)) {
+          if (item.dataset.threadId === threadId) {
             item.classList.add('active');
           }
         });
@@ -251,6 +300,7 @@
           thread_id: currentThreadId || 'global_thread_id'
         };
         
+        console.log('Sending message with data:', messageData);  // Debug log
         subscription.send(messageData);
       }
     }
