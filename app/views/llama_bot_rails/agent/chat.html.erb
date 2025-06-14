@@ -293,12 +293,17 @@
       font-style: italic;
     }
 
-    .user-message {
+    .human-message {
       background-color: var(--accent-color);
       margin-left: auto;
     }
 
-    .bot-message {
+    .tool-message {
+      background-color: #404040;
+      margin-right: auto;
+    }    
+
+    .ai-message {
       background-color: #404040;
       margin-right: auto;
     }
@@ -477,11 +482,14 @@
       received(data) {
         const parsedData = JSON.parse(data).message;
         switch(parsedData.type) {
-          case "ai":
-            addMessage(parsedData.content, 'bot');
+            case "ai":
+              addMessage(parsedData.content, parsedData.type);
+              break;
+          case "tool":
+            addMessage(parsedData.content, parsedData.type);
             break;
           case "error":
-            addMessage(parsedData.content, 'error');
+            addMessage(parsedData.content, parsedData.type);
             break;
           case "pong":
             lastPongTime = Date.now();
@@ -649,7 +657,7 @@
           
           messages.forEach(message => {
             if (message && message.content) {
-              addMessage(message.content, message.type === 'human' ? 'user' : 'bot');
+              addMessage(message.content, message.type);
             }
           });
         }
@@ -703,7 +711,7 @@
           welcomeMessage.remove();
         }
         
-        addMessage(message, 'user');
+        addMessage(message, 'human');
         input.value = '';
 
         // Generate timestamp-based thread ID if we don't have one
@@ -736,8 +744,10 @@
       messageDiv.className = `message ${sender}-message`;
       
       // Parse markdown for bot messages using Snarkdown, keep plain text for user messages
-      if (sender === 'bot') {
+      if (sender === 'ai') {
         messageDiv.innerHTML = snarkdown(text);
+      } else if (sender === 'tool') { //tool messages are not parsed as markdown
+        messageDiv.textContent = `🔨 - ${text}`;
       } else {
         messageDiv.textContent = text;
       }
