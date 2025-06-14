@@ -335,7 +335,7 @@
       const threadElement = document.createElement('div');
       threadElement.className = 'thread-item';
       const threadId = thread.thread_id || thread.id;
-      threadElement.textContent = `Thread ${threadId}`;
+      threadElement.textContent = threadId;
       threadElement.dataset.threadId = threadId;
       threadElement.onclick = () => {
         console.log('Clicked thread with ID:', threadId);  // Debug log
