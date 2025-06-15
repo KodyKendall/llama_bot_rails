@@ -15,7 +15,7 @@ Gem::Specification.new do |spec|
     Dir["{app,config,db,lib}/**/*", "MIT-LICENSE", "Rakefile", "README.md", "bin/*"]
   end
   
-  spec.add_dependency "rails", "~> 7.0"
+  spec.add_dependency "rails", ">= 7.0", "< 9.0"
   spec.add_dependency "actioncable", "~> 7.0"
   spec.add_dependency "async-websocket"
   spec.add_dependency "async-http"
