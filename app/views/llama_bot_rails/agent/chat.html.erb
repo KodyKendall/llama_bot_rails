@@ -765,50 +765,165 @@
             let internal_thoughts = function_arguments.internal_thoughts;
 
             messageDiv.innerHTML = `
-              <div style="margin-bottom:12px; font-size:1rem;">
-                <!-- User message (status/action) -->
-                <div style="background: #e9f5ec; color: #146b3a; border-radius: 6px; padding: 8px 12px; margin-bottom: 8px; font-weight: 500; box-shadow:0 1px 3px #0001;">
-                  🤖 <strong>LlamaBot:</strong> ${message_to_user}
+              <div class="tool-execution-block">
+                <!-- Main action message -->
+                <div class="tool-action-message">
+                  <div class="tool-action-header">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="tool-action-icon">
+                      <path d="M9 12l2 2 4-4"/>
+                      <circle cx="12" cy="12" r="10"/>
+                    </svg>
+                    <span class="tool-action-label">LlamaBot</span>
+                  </div>
+                  <div class="tool-action-content">${message_to_user}</div>
                 </div>
 
-                <!-- Internal thoughts -->
-                <div style="color:#7d7d7d; font-style: italic; margin-bottom: 8px; display: flex; align-items: center;">
-                  <span style="font-size:1.1em; margin-right:6px;">💡</span> 
-                  ${internal_thoughts}
+                <!-- Internal reasoning -->
+                <div class="tool-reasoning">
+                  <div class="tool-reasoning-header">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="tool-reasoning-icon">
+                      <circle cx="12" cy="12" r="5"/>
+                      <path d="M12 1v6"/>
+                      <path d="M12 17v6"/>
+                      <path d="M4.22 4.22l4.24 4.24"/>
+                      <path d="M15.54 15.54l4.24 4.24"/>
+                      <path d="M1 12h6"/>
+                      <path d="M17 12h6"/>
+                      <path d="M4.22 19.78l4.24-4.24"/>
+                      <path d="M15.54 8.46l4.24-4.24"/>
+                    </svg>
+                    <span class="tool-reasoning-label">Reasoning</span>
+                  </div>
+                  <div class="tool-reasoning-content">${internal_thoughts}</div>
                 </div>
 
-                <!-- Terminal block for command -->
-                <div style="
-                  background: #181b20;
-                  color: #53ff6b;
-                  border-radius: 8px;
-                  padding: 14px 18px;
-                  font-family: 'Fira Mono', 'Menlo', 'Monaco', 'Consolas', monospace;
-                  font-size: 1.05em;
-                  position: relative;
-                  min-height: 54px;
-                  box-shadow: 0 2px 12px #0003;
-                  overflow-x: auto;
-                  margin-bottom: 2px;
-                ">
-                  <span style="color: #efc371;">$</span> 
-                  <span id="console-command-text">${rails_console_command.replace(/;/g, ';\n')}</span>
-                  <span class="terminal-cursor" style="
-                    display:inline-block;
-                    background:#53ff6b;
-                    width:7px;
-                    height:1.15em;
-                    margin-left:2px;
-                    animation: blink 1.1s steps(1) infinite;
-                    vertical-align: middle;
-                  "></span>
+                <!-- Command execution -->
+                <div class="tool-command-block">
+                  <div class="tool-command-content">
+                    <span class="command-prompt">$</span> <code>${rails_console_command.replace(/;/g, ';<br>')}</code>
+                  </div>
                 </div>
               </div>
 
               <style>
-                @keyframes blink {
-                  0%, 100% { opacity: 1; }
-                  50% { opacity: 0; }
+                .tool-execution-block {
+                  background: rgba(255, 255, 255, 0.02);
+                  border: 1px solid rgba(255, 255, 255, 0.08);
+                  border-radius: 12px;
+                  padding: 0;
+                  overflow: hidden;
+                  margin: 4px 0;
+                }
+
+                .tool-action-message {
+                  background: linear-gradient(135deg, rgba(33, 150, 243, 0.1) 0%, rgba(33, 150, 243, 0.05) 100%);
+                  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+                  padding: 16px 20px;
+                }
+
+                .tool-action-header {
+                  display: flex;
+                  align-items: center;
+                  gap: 8px;
+                  margin-bottom: 8px;
+                }
+
+                .tool-action-icon {
+                  color: var(--accent-color);
+                  flex-shrink: 0;
+                }
+
+                .tool-action-label {
+                  font-size: 13px;
+                  font-weight: 600;
+                  color: var(--accent-color);
+                  text-transform: uppercase;
+                  letter-spacing: 0.5px;
+                }
+
+                .tool-action-content {
+                  color: var(--text-primary);
+                  font-size: 15px;
+                  line-height: 1.5;
+                  margin-left: 24px;
+                }
+
+                .tool-reasoning {
+                  background: rgba(255, 255, 255, 0.02);
+                  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+                  padding: 14px 20px;
+                }
+
+                .tool-reasoning-header {
+                  display: flex;
+                  align-items: center;
+                  gap: 8px;
+                  margin-bottom: 6px;
+                }
+
+                .tool-reasoning-icon {
+                  color: var(--text-secondary);
+                  flex-shrink: 0;
+                }
+
+                .tool-reasoning-label {
+                  font-size: 12px;
+                  font-weight: 500;
+                  color: var(--text-secondary);
+                  text-transform: uppercase;
+                  letter-spacing: 0.5px;
+                }
+
+                .tool-reasoning-content {
+                  color: var(--text-secondary);
+                  font-size: 14px;
+                  line-height: 1.4;
+                  font-style: italic;
+                  margin-left: 22px;
+                  opacity: 0.8;
+                }
+
+                .tool-command-block {
+                  background: rgba(255, 255, 255, 0.02);
+                  padding: 16px 20px;
+                }
+
+                .tool-command-content {
+                  background: rgba(0, 0, 0, 0.4);
+                  border: 1px solid rgba(255, 255, 255, 0.1);
+                  border-radius: 8px;
+                  padding: 14px 18px;
+                  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Source Code Pro', monospace;
+                  font-size: 13px;
+                  line-height: 1.6;
+                  color: #e5e7eb;
+                  overflow-x: auto;
+                  display: flex;
+                  align-items: flex-start;
+                }
+
+                .command-prompt {
+                  color: #10b981;
+                  font-weight: 600;
+                  margin-right: 8px;
+                  flex-shrink: 0;
+                }
+
+                .tool-command-content code {
+                  background: none;
+                  padding: 0;
+                  color: inherit;
+                  font-size: inherit;
+                  font-family: inherit;
+                  flex: 1;
+                }
+
+                .tool-execution-block:hover {
+                  border-color: rgba(255, 255, 255, 0.12);
+                }
+
+                .tool-execution-block:hover .tool-action-message {
+                  background: linear-gradient(135deg, rgba(33, 150, 243, 0.12) 0%, rgba(33, 150, 243, 0.06) 100%);
                 }
               </style>
             `;
