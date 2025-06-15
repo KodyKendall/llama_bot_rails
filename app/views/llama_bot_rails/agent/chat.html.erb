@@ -406,6 +406,7 @@
       color: var(--text-secondary);
     }
   </style>
+  <%= javascript_importmap_tags %>
   <%= javascript_include_tag "llama_bot_rails/application" %>
   <%= action_cable_meta_tag %>
   <!-- Add Snarkdown CDN -->
@@ -466,36 +467,45 @@
     let errorModalShown = false;
     let connectionCheckInterval;
 
-    // Initialize ActionCable connection
-    const consumer = LlamaBotRails.cable;
-    const subscription = consumer.subscriptions.create('LlamaBotRails::ChatChannel', {
-      connected() {
-        console.log('Connected to chat channel');
-        lastPongTime = Date.now();
-        loadThreads();
-        startConnectionCheck();
-      },
-      disconnected() {
-        console.log('Disconnected from chat channel');
-        updateStatusIcon('status-red');
-      },
-      received(data) {
-        const parsedData = JSON.parse(data).message;
-        switch(parsedData.type) {
+    function waitForCableConnection(callback) {
+      const interval = setInterval(() => {
+        if (window.LlamaBotRails && LlamaBotRails.cable) {
+          clearInterval(interval);
+          callback(LlamaBotRails.cable);
+        }
+      }, 50);
+    }
+    
+    waitForCableConnection((consumer) => {
+      const subscription = consumer.subscriptions.create('LlamaBotRails::ChatChannel', {
+        connected() {
+          console.log('Connected to chat channel');
+          lastPongTime = Date.now();
+          loadThreads();
+          startConnectionCheck();
+        },
+        disconnected() {
+          console.log('Disconnected from chat channel');
+          updateStatusIcon('status-red');
+        },
+        received(data) {
+          const parsedData = JSON.parse(data).message;
+          switch (parsedData.type) {
             case "ai":
               addMessage(parsedData.content, parsedData.type, parsedData.base_message);
               break;
-          case "tool":
-            addMessage(parsedData.content, parsedData.type, parsedData.base_message);
-            break;
-          case "error":
-            addMessage(parsedData.content, parsedData.type, parsedData.base_message);
-            break;
-          case "pong":
-            lastPongTime = Date.now();
-            break;
+            case "tool":
+              addMessage(parsedData.content, parsedData.type, parsedData.base_message);
+              break;
+            case "error":
+              addMessage(parsedData.content, parsedData.type, parsedData.base_message);
+              break;
+            case "pong":
+              lastPongTime = Date.now();
+              break;
+          }
         }
-      }
+      });
     });
 
     function startConnectionCheck() {
