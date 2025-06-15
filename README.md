@@ -2,7 +2,7 @@
 
 **Turn any Rails app into an AI Agent in 2 minutes**
 
-Chat with your models. Generate pages. Run console commands. All powered by LangGraph + OpenAI.
+Chat with a powerful agent that has access to your models, your application context, and can run console commands. All powered by LangGraph + OpenAI.
 
 [![Gem Version](https://badge.fury.io/rb/llama_bot_rails.svg)](https://badge.fury.io/rb/llama_bot_rails)
 [![Ruby](https://img.shields.io/badge/ruby-%3E%3D%202.7-red)](https://www.ruby-lang.org/)
@@ -10,51 +10,72 @@ Chat with your models. Generate pages. Run console commands. All powered by Lang
 
 ---
 
-## ⭐️ **Try it now in your Rails app** →
+## 🎥 **See it in action** (30-Second Demo)
 
-```bash
-# 1. Add to any Rails app
-bundle add llama_bot_rails
-
-# 2. Install the chat interface  
-rails generate llama_bot_rails:install
-
-# 3. Clone & run the LangGraph backend
-git clone https://github.com/kodykendall/llamabot
-cd llamabot
-OPENAI_API_KEY=your_key uvicorn app:app
-
-# 4. Visit your app and start chatting
-open http://localhost:3000/llama_bot/agent/chat
-```
-
-**That's it.** Your Rails app now has an AI agent that understands your models, routes, and codebase.
-
----
-
-## 🎥 **See it in action** (30 seconds)
+👉 [Insert GIF or YouTube link here]
+“Welcome to the future of Rails + AI.”
 
 ### The agent can:
 
 - 🔍 **Explore your Rails app** (models, routes, controllers)
 - 💾 **Query and create data** via Rails console
-- 🛠️ **Generate code and pages**
+- 🛠️ **Take action on your behalf**
 - 🧠 **Understand your domain** through natural conversation
+
+
+---
+
+## 🚀 **Quickstart** →
+
+
+```bash
+
+# 1. Add the gem
+bundle add llama_bot_rails
+
+# 2. Install the routes & chat interface
+rails generate llama_bot_rails:install
+
+# 3. Clone & run the LangGraph backend
+git clone https://github.com/kodykendall/llamabot
+cd llamabot
+OPENAI_API_KEY=your_key 
+cd backend && uvicorn app:app --reload
+
+# Start your Rails server
+rails server
+
+# Visit the chat interface and start chatting.
+open http://localhost:3000/llama_bot/agent/chat
+
+```
+
+**That's it.** ✅ You can now chat with your Rails app like a new assistant.
+
+### Try asking:
+- "What models do I have in this app?"
+- "Show me the User model structure"
+- "Create a test user"
+- "What are my routes?"
+
+### Prerequisites
+- Rails 7.0+
+- Ruby 2.7+  
+- Redis (for ActionCable)
+- OpenAI API key
+
+---
 
 ## 🧨 **Power & Responsibility**
 
-### ⚠️ **WARNING: Rails Console Tool is Powerful**
+### ⚠️ **This gem gives the agent access to your Rails console.**
 
-The `run_rails_console_command` tool gives the AI agent access to your Rails console.
-This is **amazing for local/dev environments**, but dangerous in production.
+This is **incredibly powerful** -- and also potentially dangerous in production.
+*Treat it like giving shell access to a developer.*
 
-🚫 **Do not deploy this tool to production** without removing or tightly controlling it.
+🚫 **Do not deploy this tool to production** without understanding the risks to your production data & application.
 
-**To disable it:**
-- Remove the tool from `AgentStateBuilder` 
-- Or set `LLAMABOT_ENV=production` and conditionally skip dev-only tools
-
-*This is a developer tool first — treat it like you'd treat giving someone console access.*
+**🛡️ Production safety features coming soon**
 
 ## 🏗️ **Architecture**
 
@@ -70,72 +91,11 @@ This is **amazing for local/dev environments**, but dangerous in production.
 ```
 
 **What happens:**
-1. **Rails frontend** provides a modern chat interface  
-2. **ActionCable WebSocket** handles real-time communication
+1. **Rails frontend** provides a chat interface 
+2. **ActionCable WebSocket** handles real-time communication to LangGraph
 3. **LangGraph backend** runs the AI agent with access to tools
-4. **Agent executes** Rails console commands and returns results
-5. **Results stream back** to your chat interface in real-time
-
-## 🚀 **Quick Start**
-
-### Prerequisites
-- Rails 7.0+
-- Ruby 2.7+  
-- Redis (for ActionCable in production)
-- OpenAI API key
-
-### 1. Install the Gem
-
-```ruby
-# Gemfile
-gem 'llama_bot_rails'
-```
-
-```bash
-bundle install
-```
-
-### 2. Generate the Chat Interface
-```bash
-rails generate llama_bot_rails:install
-```
-
-This adds:
-- Routes (/llama_bot/agent/chat)
-- ActionCable channel configuration
-- Chat interface views
-- JavaScript assets
-
-### 3. Set Up the LangGraph Backend
-```bash
-# Clone the LangGraph agent
-git clone https://github.com/kodykendall/llamabot
-cd llamabot
-
-# Install Python dependencies  
-pip install -r requirements.txt
-
-# Set your OpenAI API key
-export OPENAI_API_KEY=your_openai_api_key_here
-
-# Run the backend
-uvicorn app:app --host 0.0.0.0 --port 8000
-```
-
-### 4. Start Chatting
-```bash
-# Start your Rails server
-rails server
-
-# Visit the chat interface
-open http://localhost:3000/llama_bot/agent/chat
-```
-
-Try asking:
-- "What models do I have in this app?"
-- "Show me the User model structure"
-- "Create a test user"
-- "What are my routes?"
+4. **Agent executes** A sequence of Rails console commands, reasoning throughout the process.
+5. **Results stream back** to the chat interface in real-time
 
 ## 🛠️ **Customization**
 
@@ -277,12 +237,6 @@ RAILS_ENV=production
 LLAMABOT_ENV=production
 ```
 
-### System Dependencies
-- **Git** - For cloning the LangGraph backend
-- **Node.js** - For JavaScript asset compilation (if using asset pipeline)
-- **PostgreSQL/MySQL** - Database for Rails application
-- **Redis Server** - For ActionCable in production
-
 ## 🤝 **Contributing**
 
 We'd love your help making LlamaBotRails better!
@@ -307,9 +261,6 @@ bundle install
 
 # Run tests  
 bundle exec rspec
-
-# Run rubocop for code style
-bundle exec rubocop
 
 # Test in a real Rails app
 cd example_app
@@ -343,30 +294,9 @@ Need help with your contribution?
 
 ## 🐛 **Troubleshooting**
 
-### Chat Interface Won't Load
-- **Check ActionCable configuration**: Ensure `config/cable.yml` is properly configured
-- **Verify Redis**: Make sure Redis is running (required for production)
-- **Browser console**: Check for JavaScript errors in browser developer tools
-- **Route conflicts**: Ensure `/llama_bot/agent/chat` route isn't conflicting
-
+Test backend connectivity
 ```bash
-# Test ActionCable connection
-rails console
-ActionCable.server.broadcast("test", message: "hello")
-```
-
-### Agent Not Responding  
-- **Backend status**: Verify LangGraph backend is running on `localhost:8000`
-- **API key**: Check `OPENAI_API_KEY` is set correctly and valid
-- **WebSocket errors**: Look for connection errors in Rails logs
-- **Network issues**: Test backend connectivity
-
-```bash
-# Test backend connectivity
-curl http://localhost:8000/health
-
-# Test WebSocket connection
-wscat -c ws://localhost:8000/ws
+curl http://localhost:8000/hello
 ```
 
 ### Permission Errors
@@ -374,23 +304,6 @@ wscat -c ws://localhost:8000/ws
 - **Authorization logs**: Check Rails logs for authorization failures  
 - **Session config**: Verify session store configuration
 - **CORS issues**: Check cross-origin settings if using different domains
-
-### Common Issues
-
-```bash
-# Clear Rails cache
-rails tmp:clear
-
-# Restart ActionCable
-rails restart
-
-# Check gem installation
-bundle list | grep llama_bot_rails
-
-# Verify environment variables
-echo $OPENAI_API_KEY
-echo $LLAMABOT_WEBSOCKET_URL
-```
 
 ### Getting Help
 - 📖 [**Full Documentation**](https://github.com/kodykendall/llama_bot_rails/wiki)
@@ -405,7 +318,7 @@ echo $LLAMABOT_WEBSOCKET_URL
 We're just getting started. Coming soon:
 
 - 🛡️ **Enhanced security controls** for production deployments
-- 🔧 **More built-in tools** (file system, API calls, database queries)
+- 🔧 **More built-in tools** (scaffolding, API calls, database queries)
 - 🎨 **Customizable chat themes** and branding  
 - 📊 **Analytics and monitoring** for agent interactions
 - 🔌 **Plugin system** for custom tool development
@@ -428,4 +341,4 @@ If LlamaBotRails helped you build something cool, **give us a star** ⭐️ and 
 
 ---
 
-*Built with ❤️ by the [LlamaPress](https://llamapress.ai) team*
+*Built with ❤️ by [Kody](https://kodykendall.com)*
