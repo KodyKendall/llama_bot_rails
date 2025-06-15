@@ -740,6 +740,7 @@
 
     function addMessage(text, sender, data=null) {
       console.log('🧠 Message from LlamaBot:', text, sender, data);
+      debugger;
 
       const messagesDiv = document.getElementById('chat-messages');
       const messageDiv = document.createElement('div');
@@ -752,11 +753,59 @@
           let function_arguments = JSON.parse(data.tool_calls[0].function.arguments);
           
           if (function_name == 'run_rails_console_command') {
-            let rails_console_command = function_arguments.rails_console_command;
-            let message_to_user = function_arguments.message_to_user;
-            let internal_thoughts = function_arguments.internal_thoughts;
-            messageDiv.innerHTML = message_to_user + internal_thoughts + rails_console_command;
-          }
+  let rails_console_command = function_arguments.rails_console_command;
+  let message_to_user = function_arguments.message_to_user;
+  let internal_thoughts = function_arguments.internal_thoughts;
+
+  messageDiv.innerHTML = `
+    <div style="margin-bottom:12px; font-size:1rem;">
+      <!-- User message (status/action) -->
+      <div style="background: #e9f5ec; color: #146b3a; border-radius: 6px; padding: 8px 12px; margin-bottom: 8px; font-weight: 500; box-shadow:0 1px 3px #0001;">
+        🤖 <strong>LlamaBot:</strong> ${message_to_user}
+      </div>
+
+      <!-- Internal thoughts -->
+      <div style="color:#7d7d7d; font-style: italic; margin-bottom: 8px; display: flex; align-items: center;">
+        <span style="font-size:1.1em; margin-right:6px;">💡</span> 
+        ${internal_thoughts}
+      </div>
+
+      <!-- Terminal block for command -->
+      <div style="
+        background: #181b20;
+        color: #53ff6b;
+        border-radius: 8px;
+        padding: 14px 18px;
+        font-family: 'Fira Mono', 'Menlo', 'Monaco', 'Consolas', monospace;
+        font-size: 1.05em;
+        position: relative;
+        min-height: 54px;
+        box-shadow: 0 2px 12px #0003;
+        overflow-x: auto;
+        margin-bottom: 2px;
+      ">
+        <span style="color: #efc371;">$</span> 
+        <span id="console-command-text">${rails_console_command.replace(/;/g, ';\n')}</span>
+        <span class="terminal-cursor" style="
+          display:inline-block;
+          background:#53ff6b;
+          width:7px;
+          height:1.15em;
+          margin-left:2px;
+          animation: blink 1.1s steps(1) infinite;
+          vertical-align: middle;
+        "></span>
+      </div>
+    </div>
+
+    <style>
+      @keyframes blink {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0; }
+      }
+    </style>
+  `;
+}
           else {
             messageDiv.innerHTML = `🔨 - ${function_name}`;
             messageDiv.innerHTML += `<pre>${JSON.stringify(function_arguments, null, 2)}</pre>`;
