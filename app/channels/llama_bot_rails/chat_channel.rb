@@ -6,11 +6,11 @@ module LlamaBotRails
     def subscribed
       begin
         stream_from "chat_channel_#{params[:session_id]}" # Public stream for session-based messages <- this is the channel we're subscribing to in _websocket.html.erb
-        Rails.logger.info "Subscribed to chat channel with session ID: #{params[:session_id]}"
+        Rails.logger.info "[LlamaBot] Subscribed to chat channel with session ID: #{params[:session_id]}"
         
         @connection_id = SecureRandom.uuid
-        Rails.logger.info "Created new connection with ID: #{@connection_id}"
-        Rails.logger.info "[LlamaBot] Secure API token genereated."
+        Rails.logger.info "[LlamaBot] Created new connection with ID: #{@connection_id}"
+        Rails.logger.info "[LlamaBot] Secure API token generated."
 
         # Use a begin/rescue block to catch thread creation errors
       begin
@@ -26,20 +26,20 @@ module LlamaBotRails
           setup_external_websocket(@connection_id)
         end
       rescue => e
-        Rails.logger.error "Error in WebSocket subscription: #{e.message}"
+        Rails.logger.error "[LlamaBot] Error in WebSocket subscription: #{e.message}"
         Rails.logger.error e.backtrace.join("\n")
         
         # Send error message to frontend before rejecting
         begin
           send_message_to_frontend("error", "Failed to establish chat connection: #{e.message}")
         rescue => send_error
-          Rails.logger.error "Could not send error to frontend: #{send_error.message}"
+          Rails.logger.error "[LlamaBot] Could not send error to frontend: #{send_error.message}"
         end
         
         reject # Reject the connection if there's an error
         end
       rescue ThreadError => e
-        Rails.logger.error "Failed to allocate thread: #{e.message}"
+        Rails.logger.error "[LlamaBot] Failed to allocate thread: #{e.message}"
         # Handle the error gracefully - potentially notify the client
         send_message_to_frontend("error", "Failed to establish connection: #{e.message}")
       end
@@ -47,7 +47,7 @@ module LlamaBotRails
 
     def unsubscribed
       connection_id = @connection_id
-      Rails.logger.info "Unsubscribing connection: #{connection_id}"
+      Rails.logger.info "[LlamaBot] Unsubscribing connection: #{connection_id}"
       
       begin
         # Only kill the worker if it belongs to this connection
@@ -55,9 +55,9 @@ module LlamaBotRails
           begin
             @worker.kill
             @worker = nil
-            Rails.logger.info "Killed worker thread for connection: #{connection_id}"
+            Rails.logger.info "[LlamaBot] Killed worker thread for connection: #{connection_id}"
           rescue => e
-            Rails.logger.error "Error killing worker thread: #{e.message}"
+            Rails.logger.error "[LlamaBot] Error killing worker thread: #{e.message}"
           end
         end
 
@@ -67,16 +67,16 @@ module LlamaBotRails
           @keepalive_task&.stop rescue nil
           @external_ws_task&.stop rescue nil
         rescue => e
-          Rails.logger.error "Error stopping async tasks: #{e.message}"
+          Rails.logger.error "[LlamaBot] Error stopping async tasks: #{e.message}"
         end
         
         # Clean up the connection
         if @external_ws_connection
           begin
             @external_ws_connection.close
-            Rails.logger.info "Closed external WebSocket connection for: #{connection_id}"
+            Rails.logger.info "[LlamaBot] Closed external WebSocket connection for: #{connection_id}"
           rescue => e
-            Rails.logger.warn "Could not close WebSocket connection: #{e.message}"
+            Rails.logger.warn "[LlamaBot] Could not close WebSocket connection: #{e.message}"
           end
         end
         
@@ -85,7 +85,7 @@ module LlamaBotRails
           GC.start
         end
       rescue => e
-        Rails.logger.error "Fatal error during channel unsubscription: #{e.message}"
+        Rails.logger.error "[LlamaBot] Fatal error during channel unsubscription: #{e.message}"
         Rails.logger.error e.backtrace.join("\n")
       end
     end
@@ -94,40 +94,10 @@ module LlamaBotRails
     # through external websocket to FastAPI/Python backend.
     def receive(data)
       begin
-        Rails.logger.info "Message Received from frontend!"
-
         #used to validate the message before it's sent to the backend.
 
         #This could be an example of how we might implement hooks & filters in the future.
-        validate_message(data) #Placeholder for now, we are using this to mock errors being thrown. In the future, we can add actual validation logic.
-
-        #TODO: Add in hooks & filters here, so that the developer can customize and add their own logic.s
-        # Standardize field names so LlamaBot Backend can understand
-        # data["web_page_id"] = data["webPageId"]
-        # data["user_message"] = data["message"]
-        # data["selected_element"] = data["selectedElement"] 
-        # data["user_llamapress_api_token"] = current_user.api_token
-
-        #TODO: Add in hooks & filters here, so that the developer can customize and add their own logic.s
-        # # Add site's system_prompt to the data if it exists
-        # if @web_page&.site&.system_prompt.present?
-        #   data["system_prompt"] = @web_page.site.system_prompt
-        # end
-
-                #TODO: Add in hooks & filters here, so that the developer can customize and add their own logic.s
-
-        # Add site's llamabot_agent_name to the data if it exists
-        # if @web_page&.site&.llamabot_agent_name.present?
-        #   data["llamabot_agent_name"] = @web_page.site.llamabot_agent_name # this is so the user can choose the agent they want to use
-        # end 
-        
-        #TODO: Add in hooks & filters here, so that the developer can customize and add their own logic.s
-        # if @web_page.site.wordpress_api_encoded_token.present?
-        #   data["wordpress_api_encoded_token"] = @web_page.site.wordpress_api_encoded_token
-        # else
-        #   data["wordpress_api_encoded_token"] = nil
-        # end
-        
+        validate_message(data) #Placeholder for now, we are using this to mock errors being thrown. In the future, we can add actual validation logic.        
         # Forward the processed data to the LlamaBot Backend Socket
         message = data["message"]
 
@@ -144,9 +114,9 @@ module LlamaBotRails
         send_to_external_application(state_payload)
 
         # Log the incoming WebSocket data
-        Rails.logger.info "Got message from Javascript LlamaBot Frontend: #{data.inspect}"
+        Rails.logger.info "[LlamaBot] Got message from Javascript LlamaBot Frontend: #{data.inspect}"
       rescue => e
-        Rails.logger.error "Error in receive method: #{e.message}"
+        Rails.logger.error "[LlamaBot] Error in receive method: #{e.message}"
         send_message_to_frontend("error", e.message)
       end
     end
@@ -154,7 +124,7 @@ module LlamaBotRails
     def send_message_to_frontend(type, message, trace_info = nil)
       
       # Log trace info for debugging
-      Rails.logger.info "TRACE INFO DEBUG: Type: #{type}, Has trace info: #{trace_info.present?}"
+      Rails.logger.info "[LlamaBot] TRACE INFO DEBUG: Type: #{type}, Has trace info: #{trace_info.present?}"
 
       message_data = {
         type: type,
@@ -174,12 +144,12 @@ module LlamaBotRails
 
     def setup_external_websocket(connection_id)
       Thread.current[:connection_id] = connection_id
-      Rails.logger.info "Setting up external websocket for connection: #{connection_id}"
+      Rails.logger.info "[LlamaBot] Setting up external websocket for connection: #{connection_id}"
       
       # Check if the WebSocket URL is configured
       websocket_url = ENV['LLAMABOT_WEBSOCKET_URL']
       if websocket_url.blank?
-        Rails.logger.warn "LLAMABOT_WEBSOCKET_URL not configured, skipping external WebSocket setup"
+        Rails.logger.warn "[LlamaBot] LLAMABOT_WEBSOCKET_URL not configured, skipping external WebSocket setup"
         return
       end
       
@@ -211,7 +181,7 @@ module LlamaBotRails
       @external_ws_task = Async do |task|
         begin
           @external_ws_connection = Async::WebSocket::Client.connect(endpoint)
-          Rails.logger.info "Connected to external WebSocket for connection: #{connection_id}"
+          Rails.logger.info "[LlamaBot] Connected to external WebSocket for connection: #{connection_id}"
           
           #Tell llamabot frontend that we've connected to the backend
           formatted_message = { message: {type: "external_ws_pong"} }.to_json
@@ -229,7 +199,7 @@ module LlamaBotRails
           # Wait for tasks to complete or connection to close
           [@listener_task, @keepalive_task].each(&:wait)
         rescue => e
-          Rails.logger.error "Failed to connect to external WebSocket for connection #{connection_id}: #{e.message}"
+          Rails.logger.error "[LlamaBot] Failed to connect to external WebSocket for connection #{connection_id}: #{e.message}"
         ensure
           # Clean up tasks if they exist
           @listener_task&.stop
@@ -258,7 +228,7 @@ module LlamaBotRails
           message_content = message.content
         end
 
-        Rails.logger.info "Received from external WebSocket: #{message_content}"
+        Rails.logger.info "[LlamaBot] Received from external WebSocket: #{message_content}"
         
         begin
           parsed_message = JSON.parse(message_content)
@@ -275,18 +245,17 @@ module LlamaBotRails
             # Add any additional handling for tool messages here
             formatted_message = { message: {type: "tool", content: parsed_message['content'], base_message: parsed_message["base_message"]} }.to_json
           when "error"
-            Rails.logger.error "---------Received error message!----------"
+            Rails.logger.error "[LlamaBot] ---------Received error message!----------"
             response = parsed_message['content']
             formatted_message = { message: message_content }.to_json
-            Rails.logger.error "---------------------> Response: #{response}"
-            Rails.logger.error "---------Completed error message!----------"
+            Rails.logger.error "[LlamaBot] ---------------------> Response: #{response}"
+            Rails.logger.error "[LlamaBot] ---------Completed error message!----------"
           when "pong"
-            Rails.logger.debug "Received pong response"
             # Tell llamabot frontend that we've received a pong response, and we're still connected
             formatted_message = { message: {type: "pong"} }.to_json
           end
         rescue JSON::ParserError => e
-          Rails.logger.error "Failed to parse message as JSON: #{e.message}"
+          Rails.logger.error "[LlamaBot] Failed to parse message as JSON: #{e.message}"
         end
         ActionCable.server.broadcast "chat_channel_#{params[:session_id]}", formatted_message
       end
@@ -303,11 +272,11 @@ module LlamaBotRails
         }.to_json
         connection.write(ping_message)
         connection.flush
-        Rails.logger.debug "Sent keep-alive ping: #{ping_message}"
+        Rails.logger.debug "[LlamaBot] Sent keep-alive ping: #{ping_message}"
         Async::Task.current.sleep(30)
       end
     rescue => e
-      Rails.logger.error "Error in keep-alive ping: #{e.message} | Connection type: #{connection.class.name}"
+      Rails.logger.error "[LlamaBot] Error in keep-alive ping: #{e.message} | Connection type: #{connection.class.name}"
     end
 
     # Send messages from the user to the LlamaBot Backend Socket
@@ -319,12 +288,12 @@ module LlamaBotRails
         begin
           @external_ws_connection.write(payload)
           @external_ws_connection.flush
-          Rails.logger.info "Sent message to external WebSocket: #{payload}"
+          Rails.logger.info "[LlamaBot] Sent message to external WebSocket: #{payload}"
         rescue => e
-          Rails.logger.error "Error sending message to external WebSocket: #{e.message}"
+          Rails.logger.error "[LlamaBot] Error sending message to external WebSocket: #{e.message}"
         end
       else
-        Rails.logger.error "External WebSocket connection not established"
+        Rails.logger.error "[LlamaBot] External WebSocket connection not established"
         # Optionally, you might want to attempt to reconnect here
       end
     end
