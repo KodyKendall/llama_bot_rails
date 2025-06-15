@@ -938,7 +938,13 @@
           messageDiv.innerHTML = snarkdown(text); 
         }
       } else if (sender === 'tool') { //tool messages are not parsed as markdown
-        messageDiv.textContent = `🔨 - ${text}`;
+        if (base_message.name == 'run_rails_console_command') {
+          command_result = JSON.parse(base_message.content)['result'];
+          messageDiv.innerHTML = `🖥️ - ${command_result}`;
+        }
+        else {
+          messageDiv.textContent = `🔨 - ${text}`;
+        }
       } else {
         messageDiv.textContent = text;
       }
