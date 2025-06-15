@@ -171,34 +171,15 @@ end
 ## 🔧 **Under the Hood**
 
 ### Real-Time Communication
-- **ActionCable WebSocket** for frontend ↔ Rails communication
-- **Async WebSocket client** for Rails ↔ LangGraph communication  
-- **Message streaming** with connection monitoring and reconnection
-- **Connection pooling** and automatic retry logic
-- **Bidirectional data flow** with real-time updates
+- **ActionCable WebSocket** Real-time Rails <-> Agent communication.
+- **LangGraph Backend** FastAPI + OpenAI tool orchestration
 
-### Security Features  
-- **JWT authentication** for agent API access
-- **Session-based channel isolation** prevents message crosstalk
-- **Request logging** and comprehensive audit trails
-- **Environment-aware SSL/TLS** configuration
+### Security   
+- **Secure channel seperation** -> Per-session isolation.
 - **Token expiration** and automatic refresh mechanisms
-- **CSRF protection** for all agent endpoints
 
-### Agent Tools & Capabilities
+### Command Streaming
 - **`run_rails_console_command`**: Execute Ruby code in Rails context
-- **Thread management**: Conversation persistence via LangGraph checkpoints
-- **Error handling**: Graceful error display and recovery
-- **State management**: Configurable context builders
-- **Tool chaining**: Sequential command execution with context
-- **Response streaming**: Real-time output as commands execute
-
-### Architecture Components
-- **Rails Engine**: Modular integration with existing Rails apps
-- **ActionCable Channel**: WebSocket communication layer
-- **Agent State Builder**: Customizable context management
-- **Message Router**: Intelligent routing between Rails and LangGraph
-- **Connection Monitor**: Health checks and reconnection logic
 
 ## 📋 **Requirements**
 
@@ -209,33 +190,14 @@ end
 - **Redis** - Recommended for production ActionCable backend
 
 ### LangGraph Backend  
-- **Python 3.8+** - Python runtime environment
+- **Python 3.11+** - Python runtime environment
 - **FastAPI application** - Web framework for the agent backend
 - **OpenAI API access** - For LLM capabilities
 - **WebSocket support** - For real-time bidirectional communication
 
-### Development Environment
-```bash
-# Required environment variables
-OPENAI_API_KEY=your_openai_api_key_here
-LLAMABOT_WEBSOCKET_URL=ws://localhost:8000/ws
-
-# Optional for development
-DEVELOPMENT_ENVIRONMENT=true
-REDIS_URL=redis://localhost:6379/0
-```
-
-### Production Environment  
-```bash
-# Production requirements
-OPENAI_API_KEY=your_production_openai_key
-LLAMABOT_WEBSOCKET_URL=wss://your-backend.com/ws
-REDIS_URL=your_production_redis_url
-
-# Security settings
-RAILS_ENV=production
-LLAMABOT_ENV=production
-```
+## 🧨 Troubleshooting
+- Agent not responding? Check that backend is running and OpenAI key is set.
+- WebSocket issues? Confirm LLAMABOT_WEBSOCKET_URL matches backend address.
 
 ## 🤝 **Contributing**
 
@@ -267,50 +229,6 @@ cd example_app
 bundle exec rails server
 ```
 
-### What We're Looking For
-
-- 🐛 **Bug fixes** and error handling improvements
-- 🔧 **New tools** for agent capabilities  
-- 🎨 **UI/UX improvements** for the chat interface
-- 📚 **Documentation** updates and examples
-- 🧪 **Test coverage** improvements
-- 🛡️ **Security enhancements**
-
-### Development Guidelines
-
-- **Write tests** for all new features
-- **Follow Ruby style guide** (we use RuboCop)
-- **Update documentation** for any API changes
-- **Keep commits focused** and write clear commit messages
-- **Test in both development and production** environments
-
-### Getting Help
-
-Need help with your contribution? 
-
-- 💬 **Start a discussion** in [GitHub Discussions](https://github.com/kodykendall/llama_bot_rails/discussions)
-- 📧 **Email us** at [kody@llamapress.ai](mailto:kody@llamapress.ai)
-- 🐛 **Open an issue** if you find bugs
-
-## 🐛 **Troubleshooting**
-
-Test backend connectivity
-```bash
-curl http://localhost:8000/hello
-```
-
-### Permission Errors
-- **Token validation**: Ensure agent authentication tokens are valid
-- **Authorization logs**: Check Rails logs for authorization failures  
-- **Session config**: Verify session store configuration
-- **CORS issues**: Check cross-origin settings if using different domains
-
-### Getting Help
-- 📖 [**Full Documentation**](https://github.com/kodykendall/llama_bot_rails/wiki)
-- 💬 [**GitHub Discussions**](https://github.com/kodykendall/llama_bot_rails/discussions)  
-- 🐛 [**Report Issues**](https://github.com/kodykendall/llama_bot_rails/issues)
-- 📧 **Email**: [kody@llamapress.ai](mailto:kody@llamapress.ai)
-
 ---
 
 ## 🌟 **What's Next?**
@@ -327,18 +245,20 @@ We're just getting started. Coming soon:
 
 ---
 
-## 📄 **License**
+## 📝 **License**
 
-The gem is available as open source under the terms of the [MIT License](https://opensource.org/licenses/MIT).
+[MIT](https://opensource.org/licenses/MIT). — free for commercial and personal use.
 
 ---
 
-## ⭐️ **Star us on GitHub!**
+## ⭐️ **Support the Project!**
 
-If LlamaBotRails helped you build something cool, **give us a star** ⭐️ and **share it** with other Rails developers!
+If LlamaBotRails helped you, **give us a star** ⭐️ and **share it** with other Rails developers.
+
+This is just the beginning. Let's build the Rails agentic future -- together.
 
 **[⭐️ Star on GitHub](https://github.com/kodykendall/llama_bot_rails)** • **[🍴 Fork the repo](https://github.com/kodykendall/llama_bot_rails/fork)** • **[💬 Join discussions](https://github.com/kodykendall/llama_bot_rails/discussions)**
 
 ---
 
-*Built with ❤️ by [Kody](https://kodykendall.com)*
+*Built with ❤️ by [Kody Kendall](https://kodykendall.com)*
