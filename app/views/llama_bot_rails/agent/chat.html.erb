@@ -483,13 +483,13 @@
         const parsedData = JSON.parse(data).message;
         switch(parsedData.type) {
             case "ai":
-              addMessage(parsedData.content, parsedData.type, parsedData.data);
+              addMessage(parsedData.content, parsedData.type, parsedData.base_message);
               break;
           case "tool":
-            addMessage(parsedData.content, parsedData.type, parsedData.data);
+            addMessage(parsedData.content, parsedData.type, parsedData.base_message);
             break;
           case "error":
-            addMessage(parsedData.content, parsedData.type, parsedData.data);
+            addMessage(parsedData.content, parsedData.type, parsedData.base_message);
             break;
           case "pong":
             lastPongTime = Date.now();
@@ -737,9 +737,14 @@
       }
     }
 
-    function addMessage(text, sender, data=null) {
-      console.log('🧠 Message from LlamaBot:', text, sender, data);
-      //debugger;
+    /**
+    * @param {string} text - The text content of the message
+    * @param {string} sender - The sender of the message. This matches LangGraph schema -- either 'ai', 'tool', or 'human'. 'error' if an error occurs somewhere in the stack.
+    * @param {object} base_message - The base message object. This is the object that is sent from LangGraph, and is used to parse the message.
+    * @returns {void}
+    */
+    function addMessage(text, sender, base_message=null) {
+      console.log('🧠 Message from LlamaBot:', text, sender, base_message);
 
       const messagesDiv = document.getElementById('chat-messages');
       const messageDiv = document.createElement('div');
@@ -748,66 +753,66 @@
       // Parse markdown for bot messages using Snarkdown, keep plain text for user messages
       if (sender === 'ai') { //Arghh. We're having issues with difference in formats between when we're streaming from updates mode, and when pulling state from checkpoint.
         if (text == ''){ //this is most likely a tool call.
-          let tool_call = data.additional_kwargs['tool_calls'][0];
+          let tool_call = base_message.additional_kwargs['tool_calls'][0];
 
           // The below works for loading message history from checkpoint (persistence), AND when receiving messages from LangGraph streaming "updates" mode. This is a LangGraph BaseMessage object.
           let function_name = tool_call.function.name;
           let function_arguments = JSON.parse(tool_call.function.arguments);
           
-          if (function_name == 'run_rails_console_command') {
-  let rails_console_command = function_arguments.rails_console_command;
-  let message_to_user = function_arguments.message_to_user;
-  let internal_thoughts = function_arguments.internal_thoughts;
+          if (function_name == 'run_rails_console_command') { //this is our standardized tool for running rails console commands. Matches the function name in llamabot/backend/agents/llamabot_v1/nodes.py:run_rails_console_command
+            let rails_console_command = function_arguments.rails_console_command;
+            let message_to_user = function_arguments.message_to_user;
+            let internal_thoughts = function_arguments.internal_thoughts;
 
-  messageDiv.innerHTML = `
-    <div style="margin-bottom:12px; font-size:1rem;">
-      <!-- User message (status/action) -->
-      <div style="background: #e9f5ec; color: #146b3a; border-radius: 6px; padding: 8px 12px; margin-bottom: 8px; font-weight: 500; box-shadow:0 1px 3px #0001;">
-        🤖 <strong>LlamaBot:</strong> ${message_to_user}
-      </div>
+            messageDiv.innerHTML = `
+              <div style="margin-bottom:12px; font-size:1rem;">
+                <!-- User message (status/action) -->
+                <div style="background: #e9f5ec; color: #146b3a; border-radius: 6px; padding: 8px 12px; margin-bottom: 8px; font-weight: 500; box-shadow:0 1px 3px #0001;">
+                  🤖 <strong>LlamaBot:</strong> ${message_to_user}
+                </div>
 
-      <!-- Internal thoughts -->
-      <div style="color:#7d7d7d; font-style: italic; margin-bottom: 8px; display: flex; align-items: center;">
-        <span style="font-size:1.1em; margin-right:6px;">💡</span> 
-        ${internal_thoughts}
-      </div>
+                <!-- Internal thoughts -->
+                <div style="color:#7d7d7d; font-style: italic; margin-bottom: 8px; display: flex; align-items: center;">
+                  <span style="font-size:1.1em; margin-right:6px;">💡</span> 
+                  ${internal_thoughts}
+                </div>
 
-      <!-- Terminal block for command -->
-      <div style="
-        background: #181b20;
-        color: #53ff6b;
-        border-radius: 8px;
-        padding: 14px 18px;
-        font-family: 'Fira Mono', 'Menlo', 'Monaco', 'Consolas', monospace;
-        font-size: 1.05em;
-        position: relative;
-        min-height: 54px;
-        box-shadow: 0 2px 12px #0003;
-        overflow-x: auto;
-        margin-bottom: 2px;
-      ">
-        <span style="color: #efc371;">$</span> 
-        <span id="console-command-text">${rails_console_command.replace(/;/g, ';\n')}</span>
-        <span class="terminal-cursor" style="
-          display:inline-block;
-          background:#53ff6b;
-          width:7px;
-          height:1.15em;
-          margin-left:2px;
-          animation: blink 1.1s steps(1) infinite;
-          vertical-align: middle;
-        "></span>
-      </div>
-    </div>
+                <!-- Terminal block for command -->
+                <div style="
+                  background: #181b20;
+                  color: #53ff6b;
+                  border-radius: 8px;
+                  padding: 14px 18px;
+                  font-family: 'Fira Mono', 'Menlo', 'Monaco', 'Consolas', monospace;
+                  font-size: 1.05em;
+                  position: relative;
+                  min-height: 54px;
+                  box-shadow: 0 2px 12px #0003;
+                  overflow-x: auto;
+                  margin-bottom: 2px;
+                ">
+                  <span style="color: #efc371;">$</span> 
+                  <span id="console-command-text">${rails_console_command.replace(/;/g, ';\n')}</span>
+                  <span class="terminal-cursor" style="
+                    display:inline-block;
+                    background:#53ff6b;
+                    width:7px;
+                    height:1.15em;
+                    margin-left:2px;
+                    animation: blink 1.1s steps(1) infinite;
+                    vertical-align: middle;
+                  "></span>
+                </div>
+              </div>
 
-    <style>
-      @keyframes blink {
-        0%, 100% { opacity: 1; }
-        50% { opacity: 0; }
-      }
-    </style>
-  `;
-}
+              <style>
+                @keyframes blink {
+                  0%, 100% { opacity: 1; }
+                  50% { opacity: 0; }
+                }
+              </style>
+            `;
+          }
           else {
             messageDiv.innerHTML = `🔨 - ${function_name}`;
             messageDiv.innerHTML += `<pre>${JSON.stringify(function_arguments, null, 2)}</pre>`;

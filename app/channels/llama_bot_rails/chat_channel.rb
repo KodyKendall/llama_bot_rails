@@ -270,10 +270,10 @@ module LlamaBotRails
           case parsed_message["type"]
           when "ai"
             # Add any additional handling for write_code messages here
-            formatted_message = { message: {type: "ai", content: parsed_message['content'], data: parsed_message["data"]} }.to_json
+            formatted_message = { message: {type: "ai", content: parsed_message['content'], base_message: parsed_message["base_message"]} }.to_json
           when "tool"
             # Add any additional handling for tool messages here
-            formatted_message = { message: {type: "tool", content: parsed_message['content'], data: parsed_message["data"]} }.to_json
+            formatted_message = { message: {type: "tool", content: parsed_message['content'], base_message: parsed_message["base_message"]} }.to_json
           when "error"
             Rails.logger.error "---------Received error message!----------"
             response = parsed_message['content']
