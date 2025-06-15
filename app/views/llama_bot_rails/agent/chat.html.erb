@@ -483,13 +483,13 @@
         const parsedData = JSON.parse(data).message;
         switch(parsedData.type) {
             case "ai":
-              addMessage(parsedData.content, parsedData.type);
+              addMessage(parsedData.content, parsedData.type, parsedData.data);
               break;
           case "tool":
-            addMessage(parsedData.content, parsedData.type);
+            addMessage(parsedData.content, parsedData.type, parsedData.data);
             break;
           case "error":
-            addMessage(parsedData.content, parsedData.type);
+            addMessage(parsedData.content, parsedData.type, parsedData.data);
             break;
           case "pong":
             lastPongTime = Date.now();
@@ -655,9 +655,9 @@
           const messages = threadState[0].messages || [];
           console.log('Processing messages:', messages);  // Debug log
           
-          messages.forEach(message => {
+          messages.forEach(message => { //NOTE: this is where you can access 
             if (message && message.content) {
-              addMessage(message.content, message.type);
+              addMessage(message.content, message.type, message);
             }
           });
         }
@@ -738,20 +738,39 @@
       }
     }
 
-    function addMessage(text, sender) {
+    function addMessage(text, sender, data=null) {
+      console.log('🧠 Message from LlamaBot:', text, sender, data);
+
       const messagesDiv = document.getElementById('chat-messages');
       const messageDiv = document.createElement('div');
       messageDiv.className = `message ${sender}-message`;
       
       // Parse markdown for bot messages using Snarkdown, keep plain text for user messages
       if (sender === 'ai') {
-        messageDiv.innerHTML = snarkdown(text);
+        if (text == ''){ //this is most likely a tool call.
+          let function_name = data.tool_calls[0].function.name;
+          let function_arguments = JSON.parse(data.tool_calls[0].function.arguments);
+          
+          if (function_name == 'run_rails_console_command') {
+            let rails_console_command = function_arguments.rails_console_command;
+            let message_to_user = function_arguments.message_to_user;
+            let internal_thoughts = function_arguments.internal_thoughts;
+            messageDiv.innerHTML = message_to_user + internal_thoughts + rails_console_command;
+          }
+          else {
+            messageDiv.innerHTML = `🔨 - ${function_name}`;
+            messageDiv.innerHTML += `<pre>${JSON.stringify(function_arguments, null, 2)}</pre>`;
+          }
+
+        }
+        else {
+          messageDiv.innerHTML = snarkdown(text); 
+        }
       } else if (sender === 'tool') { //tool messages are not parsed as markdown
         messageDiv.textContent = `🔨 - ${text}`;
       } else {
         messageDiv.textContent = text;
       }
-      
       messagesDiv.appendChild(messageDiv);
       messagesDiv.scrollTop = messagesDiv.scrollHeight;
     }
