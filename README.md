@@ -134,29 +134,14 @@ end
 
 ### Environment Configuration
 
-Set up your environment variables:
-
-```bash
-# .env
-LLAMABOT_WEBSOCKET_URL=ws://localhost:8000/ws
-DEVELOPMENT_ENVIRONMENT=true
-OPENAI_API_KEY=your_openai_api_key_here
-
-# For production
-LLAMABOT_WEBSOCKET_URL=wss://your-llamabot-backend.com/ws
-PRODUCTION_ENVIRONMENT=true
-```
-
 ```ruby
 # config/environments/development.rb
 Rails.application.configure do
-  config.llama_bot_rails.websocket_url = ENV['LLAMABOT_WEBSOCKET_URL']
   config.llama_bot_rails.enable_console_tool = true
 end
 
 # config/environments/production.rb
 Rails.application.configure do
-  config.llama_bot_rails.websocket_url = ENV['LLAMABOT_WEBSOCKET_URL']
   config.llama_bot_rails.enable_console_tool = false # Disable in production
 end
 ```
