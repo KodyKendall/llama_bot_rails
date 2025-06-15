@@ -654,9 +654,8 @@
           // Get the messages array from the first state object
           const messages = threadState[0].messages || [];
           console.log('Processing messages:', messages);  // Debug log
-          
           messages.forEach(message => { //NOTE: this is where you can access 
-            if (message && message.content) {
+            if (message) {
               addMessage(message.content, message.type, message);
             }
           });
@@ -740,17 +739,20 @@
 
     function addMessage(text, sender, data=null) {
       console.log('🧠 Message from LlamaBot:', text, sender, data);
-      debugger;
+      //debugger;
 
       const messagesDiv = document.getElementById('chat-messages');
       const messageDiv = document.createElement('div');
       messageDiv.className = `message ${sender}-message`;
       
       // Parse markdown for bot messages using Snarkdown, keep plain text for user messages
-      if (sender === 'ai') {
+      if (sender === 'ai') { //Arghh. We're having issues with difference in formats between when we're streaming from updates mode, and when pulling state from checkpoint.
         if (text == ''){ //this is most likely a tool call.
-          let function_name = data.tool_calls[0].function.name;
-          let function_arguments = JSON.parse(data.tool_calls[0].function.arguments);
+          let tool_call = data.additional_kwargs['tool_calls'][0];
+
+          // The below works for loading message history from checkpoint (persistence), AND when receiving messages from LangGraph streaming "updates" mode. This is a LangGraph BaseMessage object.
+          let function_name = tool_call.function.name;
+          let function_arguments = JSON.parse(tool_call.function.arguments);
           
           if (function_name == 'run_rails_console_command') {
   let rails_console_command = function_arguments.rails_console_command;
