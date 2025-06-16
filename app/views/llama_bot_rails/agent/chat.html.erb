@@ -466,6 +466,7 @@
     let redStatusStartTime = null;
     let errorModalShown = false;
     let connectionCheckInterval;
+    let subscription = null;
 
     function waitForCableConnection(callback) {
       const interval = setInterval(() => {
@@ -477,7 +478,7 @@
     }
     
     waitForCableConnection((consumer) => {
-      const subscription = consumer.subscriptions.create('LlamaBotRails::ChatChannel', {
+      subscription = consumer.subscriptions.create('LlamaBotRails::ChatChannel', {
         connected() {
           console.log('Connected to chat channel');
           lastPongTime = Date.now();
@@ -714,6 +715,13 @@
       const message = input.value.trim();
       
       if (message) {
+        // Check if subscription is available
+        if (!subscription) {
+          console.error('WebSocket connection not established yet');
+          addMessage('Connection not ready. Please wait...', 'error');
+          return;
+        }
+
         // Clear welcome message if it exists
         const welcomeMessage = document.querySelector('.welcome-message');
         if (welcomeMessage) {

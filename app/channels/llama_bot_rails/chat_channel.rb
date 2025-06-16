@@ -1,3 +1,7 @@
+require 'async'
+require 'async/http'
+require 'async/websocket'
+
 require 'json'  # Ensure JSON is required if not already
 
 module LlamaBotRails
@@ -147,28 +151,27 @@ module LlamaBotRails
       Rails.logger.info "[LlamaBot] Setting up external websocket for connection: #{connection_id}"
       
       # Check if the WebSocket URL is configured
-      websocket_url = ENV['LLAMABOT_WEBSOCKET_URL']
+      websocket_url = Rails.application.config.llama_bot_rails.websocket_url
       if websocket_url.blank?
-        Rails.logger.warn "[LlamaBot] LLAMABOT_WEBSOCKET_URL not configured, skipping external WebSocket setup"
+        Rails.logger.warn "[LlamaBot] LlamaBot Websocket URL is not configured in the config/initializers/llama_bot_rails.rb file, skipping external WebSocket setup"
         return
       end
       
-      # endpoint = Async::HTTP::Endpoint.parse(ENV['LLAMABOT_WEBSOCKET_URL']) 
       uri = URI(websocket_url)
       
       uri.scheme = 'wss'
-      uri.scheme = 'ws' if ENV['DEVELOPMENT_ENVIRONMENT'] == 'true'
+      uri.scheme = 'ws' if Rails.env.development?
 
       endpoint = Async::HTTP::Endpoint.new(
           uri,
           ssl_context: OpenSSL::SSL::SSLContext.new.tap do |ctx|
               ctx.verify_mode = OpenSSL::SSL::VERIFY_PEER
-              if ENV["STAGING_ENVIRONMENT"] == 'true'
+              if Rails.env.staging?
                 ctx.ca_file = '/usr/local/etc/ca-certificates/cert.pem'
                 # M2 Air : ctx.ca_file = '/etc//ssl/cert.pem'
                 ctx.cert = OpenSSL::X509::Certificate.new(File.read(File.expand_path('~/.ssl/llamapress/cert.pem')))
                 ctx.key = OpenSSL::PKey::RSA.new(File.read(File.expand_path('~/.ssl/llamapress/key.pem')))
-              elsif ENV['DEVELOPMENT_ENVIRONMENT'] == 'true'
+              elsif Rails.env.development?
                 # do no ctx stuff
                 ctx.verify_mode = OpenSSL::SSL::VERIFY_NONE   
               else  # production

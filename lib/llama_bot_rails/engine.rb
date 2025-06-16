@@ -11,6 +11,9 @@ module LlamaBotRails
     end
 
     config.llama_bot_rails = ActiveSupport::OrderedOptions.new
+    config.llama_bot_rails.websocket_url = 'ws://localhost:8000/ws' # <-- default
+    config.llama_bot_rails.llamabot_api_url = "http://localhost:8000"
+    config.llama_bot_rails.enable_console_tool = true
 
     initializer "llama_bot_rails.assets.precompile" do |app|
       app.config.assets.precompile += %w( llama_bot_rails/application.js )
