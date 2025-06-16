@@ -478,7 +478,9 @@
     }
     
     waitForCableConnection((consumer) => {
-      subscription = consumer.subscriptions.create('LlamaBotRails::ChatChannel', {
+      const sessionId = crypto.randomUUID();
+
+      subscription = consumer.subscriptions.create({channel: 'LlamaBotRails::ChatChannel', session_id: sessionId}, {
         connected() {
           console.log('Connected to chat channel');
           lastPongTime = Date.now();
