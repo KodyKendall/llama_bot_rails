@@ -38,6 +38,8 @@ rails generate llama_bot_rails:install
 # 3. Clone & run the LangGraph backend
 git clone https://github.com/kodykendall/llamabot
 
+cd llamabot
+
 # 4. Set up your environment
 python3 -m venv venv
 
