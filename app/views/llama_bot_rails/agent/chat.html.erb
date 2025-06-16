@@ -405,6 +405,39 @@
       font-size: 1em;
       color: var(--text-secondary);
     }
+
+    /* Clean loading indicator - just animated text */
+    .loading-indicator {
+      display: none;
+      align-items: center;
+      padding: 16px 20px;
+      color: var(--text-secondary);
+      font-size: 14px;
+      margin-bottom: 10px;
+      background: rgba(255, 255, 255, 0.02);
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .loading-indicator.visible {
+      display: flex;
+    }
+
+    .loading-text {
+      font-style: italic;
+    }
+
+    .loading-dots::after {
+      content: '';
+      animation: dots 1.5s steps(4, end) infinite;
+    }
+
+    @keyframes dots {
+      0%, 20% { content: ''; }
+      40% { content: '.'; }
+      60% { content: '..'; }
+      80%, 100% { content: '...'; }
+    }
   </style>
   <%= javascript_importmap_tags %>
   <%= javascript_include_tag "llama_bot_rails/application" %>
@@ -445,6 +478,12 @@
       <div class="chat-messages" id="chat-messages">
         <!-- Messages will be added here dynamically -->
       </div>
+      
+      <!-- Simple loading indicator with just animated text -->
+      <div class="loading-indicator" id="loading-indicator">
+        <span class="loading-text">LlamaBot is thinking<span class="loading-dots"></span></span>
+      </div>
+      
       <div class="input-container">
         <input type="text" id="message-input" placeholder="Type your message...">
         <button onclick="sendMessage()">Send</button>
@@ -712,6 +751,16 @@
       messagesDiv.appendChild(welcomeDiv);
     }
 
+    function showLoadingIndicator() {
+      const loadingIndicator = document.getElementById('loading-indicator');
+      loadingIndicator.classList.add('visible');
+    }
+
+    function hideLoadingIndicator() {
+      const loadingIndicator = document.getElementById('loading-indicator');
+      loadingIndicator.classList.remove('visible');
+    }
+
     function sendMessage() {
       const input = document.getElementById('message-input');
       const message = input.value.trim();
@@ -732,6 +781,9 @@
         
         addMessage(message, 'human');
         input.value = '';
+
+        // Show loading indicator
+        showLoadingIndicator();
 
         // Generate timestamp-based thread ID if we don't have one
         let threadId = currentThreadId;
@@ -765,6 +817,11 @@
     */
     function addMessage(text, sender, base_message=null) {
       console.log('🧠 Message from LlamaBot:', text, sender, base_message);
+
+      // Hide loading indicator when we receive an AI response
+      if (sender === 'ai') {
+        hideLoadingIndicator();
+      }
 
       const messagesDiv = document.getElementById('chat-messages');
       const messageDiv = document.createElement('div');
