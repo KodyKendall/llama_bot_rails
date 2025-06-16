@@ -27,7 +27,6 @@ Chat with a powerful agent that has access to your models, your application cont
 
 ## 🚀 **Quickstart** →
 
-
 ```bash
 
 # 1. Add the gem
@@ -38,14 +37,27 @@ rails generate llama_bot_rails:install
 
 # 3. Clone & run the LangGraph backend
 git clone https://github.com/kodykendall/llamabot
-cd llamabot
-OPENAI_API_KEY=your_key 
-cd backend && uvicorn app:app --reload
 
-# Start your Rails server
+# 4. Set up your environment
+python3 -m venv venv
+
+source venv/bin/activate
+
+pip install -r requirements.txt
+
+echo "OPENAI_API_KEY=your_openai_api_key_here" > .env
+
+# 5. Run the agent
+cd backend
+uvicorn app:app --reload
+
+# 6. Confirm our agent is running properly. You should see: Hello, World! 🦙💬
+curl http://localhost:8000/hello
+
+# 7. Start your Rails server.
 rails server
 
-# Visit the chat interface and start chatting.
+# 8. Visit the chat interface and start chatting.
 open http://localhost:3000/llama_bot/agent/chat
 
 ```
