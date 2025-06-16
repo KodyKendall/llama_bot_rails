@@ -438,6 +438,76 @@
       60% { content: '..'; }
       80%, 100% { content: '...'; }
     }
+
+    /* Suggested Prompts Styling - Always visible above input */
+    .suggested-prompts {
+      margin-bottom: 16px;
+      padding: 0 4px;
+    }
+
+    .prompts-label {
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+      font-weight: 500;
+      letter-spacing: 0.3px;
+    }
+
+    .prompts-container {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .prompts-row {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding: 2px;
+      scrollbar-width: none; /* Firefox */
+      -ms-overflow-style: none; /* IE and Edge */
+    }
+
+    .prompts-row::-webkit-scrollbar {
+      display: none; /* Chrome, Safari, Opera */
+    }
+
+    .prompt-button {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 6px;
+      padding: 8px 12px;
+      color: var(--text-secondary);
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-family: inherit;
+      white-space: nowrap;
+      flex-shrink: 0;
+      min-width: fit-content;
+    }
+
+    .prompt-button:hover {
+      background: rgba(33, 150, 243, 0.08);
+      border-color: rgba(33, 150, 243, 0.2);
+      color: var(--text-primary);
+      transform: translateY(-1px);
+    }
+
+    .prompt-button:active {
+      transform: translateY(0);
+    }
+
+    @media (max-width: 768px) {
+      .prompts-grid {
+        grid-template-columns: 1fr;
+      }
+      
+      .prompt-button {
+        font-size: 13px;
+        padding: 10px 14px;
+      }
+    }
   </style>
   <%= javascript_importmap_tags %>
   <%= javascript_include_tag "llama_bot_rails/application" %>
@@ -482,6 +552,24 @@
       <!-- Simple loading indicator with just animated text -->
       <div class="loading-indicator" id="loading-indicator">
         <span class="loading-text">LlamaBot is thinking<span class="loading-dots"></span></span>
+      </div>
+      
+      <!-- Suggested Prompts - Always visible above input -->
+      <div class="suggested-prompts" id="suggested-prompts">
+        <div class="prompts-label">Quick actions:</div>
+        <div class="prompts-container">
+          <div class="prompts-row">
+            <button class="prompt-button" onclick="selectPrompt(this)">What models are defined in this app?</button>
+            <button class="prompt-button" onclick="selectPrompt(this)">What routes exist?</button>
+            <button class="prompt-button" onclick="selectPrompt(this)">How many users are in the database?</button>
+            <button class="prompt-button" onclick="selectPrompt(this)">Show me the schema for the User model</button>
+          </div>
+          <div class="prompts-row">
+            <button class="prompt-button" onclick="selectPrompt(this)">Send a text with Twilio</button>
+            <button class="prompt-button" onclick="selectPrompt(this)">Create a BlogPost with title and body fields</button>
+            <button class="prompt-button" onclick="selectPrompt(this)">Generate a scaffolded Page model</button>
+          </div>
+        </div>
       </div>
       
       <div class="input-container">
@@ -733,11 +821,6 @@
       
       // Show welcome message
       showWelcomeMessage();
-      
-      // Clear active thread selection
-      document.querySelectorAll('.thread-item').forEach(item => {
-        item.classList.remove('active');
-      });
     }
 
     function showWelcomeMessage() {
@@ -759,6 +842,23 @@
     function hideLoadingIndicator() {
       const loadingIndicator = document.getElementById('loading-indicator');
       loadingIndicator.classList.remove('visible');
+    }
+
+    function selectPrompt(buttonElement) {
+      const promptText = buttonElement.textContent;
+      const messageInput = document.getElementById('message-input');
+      
+      // Populate the input field
+      messageInput.value = promptText;
+      
+      // Focus the input field for better UX
+      messageInput.focus();
+      
+      // Add a subtle animation to show the prompt was selected
+      buttonElement.style.transform = 'scale(0.98)';
+      setTimeout(() => {
+        buttonElement.style.transform = '';
+      }, 150);
     }
 
     function sendMessage() {
