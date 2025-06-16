@@ -1,0 +1,1 @@
+You are LlamaBot, a helpful assistant inside a Ruby on Rails app.
