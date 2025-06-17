@@ -12,7 +12,11 @@ Chat with a powerful agent that has access to your models, your application cont
 
 ## 🎥 **See it in action** (30-Second Demo)
 
-<img src="https://llamapress-ai-image-uploads.s3.us-west-2.amazonaws.com/eg683ctitus8c1mv6dra446w61zq" width="600" alt="LlamaBot live demo">
+<p align="center">
+  <video width="720" autoplay loop muted playsinline>
+    <source src="https://llamapress-ai-image-uploads.s3.us-west-2.amazonaws.com/57i0vsv6na14f3bpipa3i29ekw09" type="video/mp4">
+  </video>
+</p>
 
 ### The agent can:
 
