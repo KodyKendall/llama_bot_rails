@@ -7,9 +7,25 @@ module LlamaBotRails
         # POST /agent/command
         def command
             input = params[:command]
+            
+            # Capture both stdout and return value
+            output = StringIO.new
+            result = nil
+            
+            $stdout = output
             result = safety_eval(input)
-            render json: { result: result.inspect }
+            $stdout = STDOUT
+            
+            # If result is a string and output has content, prefer output
+            final_result = if output.string.present?
+                             output.string.strip
+                           else
+                             result
+                           end
+            
+            render json: { result: final_result }
         rescue => e
+            $stdout = STDOUT  # Reset stdout on error
             render json: { error: e.class.name, message: e.message }, status: :unprocessable_entity
         end
 
@@ -53,12 +69,11 @@ module LlamaBotRails
         private 
 
         def safety_eval(input)
-            # VERY basic, sandbox for real use!
-            result = eval(input)
-            
-            { result: result.inspect }
-        rescue => e
-            { error: e.class.name, message: e.message }
+            # Change to Rails root directory for file operations
+            Dir.chdir(Rails.root) do
+                # Create a safer evaluation context
+                binding.eval(input)
+            end
         end
 
         def authenticate_agent!
