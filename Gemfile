@@ -24,6 +24,7 @@ group :development, :test do
   gem 'capybara'
   gem 'selenium-webdriver'
   gem 'webdrivers'
+  gem 'webmock'
   gem 'pry-rails'
   gem 'pry-byebug'
 end

@@ -13,6 +13,10 @@ require 'rspec/rails'
 require 'capybara/rails'
 require 'capybara/rspec'
 require 'selenium-webdriver'
+require 'webmock/rspec'
+
+# Configure WebMock to allow connections for feature tests while blocking for unit tests
+WebMock.disable_net_connect!(allow_localhost: true)
 
 # Configure Capybara
 Capybara.register_driver :selenium_chrome_headless do |app|
@@ -84,6 +88,15 @@ RSpec.configure do |config|
 
   # Set the default path for specs
   config.default_path = 'spec'
+
+  # Configure WebMock for different test types
+  config.before(:each, type: :feature) do
+    WebMock.allow_net_connect!
+  end
+
+  config.after(:each, type: :feature) do
+    WebMock.disable_net_connect!(allow_localhost: true)
+  end
 end
 
 Shoulda::Matchers.configure do |config|
