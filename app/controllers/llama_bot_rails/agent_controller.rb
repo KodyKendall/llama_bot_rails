@@ -1,7 +1,7 @@
 require 'llama_bot_rails/llama_bot'
 module LlamaBotRails
     class AgentController < ActionController::Base
-        skip_before_action :verify_authenticity_token, only: [:command]
+        skip_before_action :verify_authenticity_token, only: [:command, :send_message]
         before_action :authenticate_agent!, only: [:command]
 
         # POST /agent/command
@@ -64,6 +64,15 @@ module LlamaBotRails
                 Rails.logger.error "Error in chat_history action: #{e.message}"
                 render json: { error: "Failed to fetch chat history" }, status: :internal_server_error
             end
+        end
+
+        # POST /agent/send-message
+        def send_message
+            message = params[:message]
+            thread_id = params[:thread_id]
+            agent_name = params[:agent_name]
+            LlamaBotRails::LlamaBot.send_agent_message(message, thread_id, agent_name)
+            render json: { message: "Message sent" }
         end
 
         private 

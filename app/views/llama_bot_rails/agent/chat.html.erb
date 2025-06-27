@@ -145,30 +145,7 @@
       display: block;
     }
 
-    .connection-status {
-      position: absolute;
-      bottom: -2px;
-      right: -2px;
-      width: 12px;
-      height: 12px;
-      border-radius: 50%;
-      border: 2px solid var(--bg-primary);
-      transition: background-color 0.3s ease;
-      z-index: 10;
-      pointer-events: none;
-    }
 
-    .status-green {
-      background-color: #22c55e !important;
-    } 
-
-    .status-yellow {
-      background-color: #eab308 !important;
-    }
-
-    .status-red {
-      background-color: #ef4444 !important;
-    }
 
     .error-modal {
       display: none;
@@ -510,16 +487,6 @@
     }
   </style>
 
-  <% if defined?(javascript_importmap_tags) %> <!-- Rails 7+ -->
-    <%= javascript_importmap_tags %>
-  <% else %> <!-- Rails 6 -->
-    <%= javascript_include_tag "application" %>
-  <% end %>
-  
-  <%= javascript_include_tag "llama_bot_rails/application" %>
-  <% if defined?(action_cable_meta_tag) %>
-    <%= action_cable_meta_tag %>
-  <% end %>
   <!-- Add Snarkdown CDN -->
   <script src="https://unpkg.com/snarkdown/dist/snarkdown.umd.js"></script>
 </head>
@@ -542,7 +509,6 @@
           </button>
           <div class="logo-container">
             <img src="https://service-jobs-images.s3.us-east-2.amazonaws.com/7rl98t1weu387r43il97h6ipk1l7" alt="LlamaBot Logo" class="logo">
-            <div id="connectionStatusIconForLlamaBot" class="connection-status status-yellow"></div>
           </div>
           <h1>LlamaBot Chat</h1>
         </div>
@@ -597,95 +563,17 @@
   <script>
     let currentThreadId = null;
     let isSidebarCollapsed = false;
-    let lastPongTime = Date.now();
-    let redStatusStartTime = null;
-    let errorModalShown = false;
-    let connectionCheckInterval;
-    let subscription = null;
 
-    function waitForCableConnection(callback) {
-      const interval = setInterval(() => {
-        if (window.LlamaBotRails && LlamaBotRails.cable) {
-          clearInterval(interval);
-          callback(LlamaBotRails.cable);
-        }
-      }, 50);
-    }
-    
-    waitForCableConnection((consumer) => {
-      const sessionId = crypto.randomUUID();
-
-      subscription = consumer.subscriptions.create({channel: 'LlamaBotRails::ChatChannel', session_id: sessionId}, {
-        connected() {
-          console.log('Connected to chat channel');
-          lastPongTime = Date.now();
-          loadThreads();
-          startConnectionCheck();
-        },
-        disconnected() {
-          console.log('Disconnected from chat channel');
-          updateStatusIcon('status-red');
-        },
-        received(data) {
-          const parsedData = JSON.parse(data).message;
-          switch (parsedData.type) {
-            case "ai":
-              addMessage(parsedData.content, parsedData.type, parsedData.base_message);
-              break;
-            case "tool":
-              addMessage(parsedData.content, parsedData.type, parsedData.base_message);
-              break;
-            case "error":
-              addMessage(parsedData.content, parsedData.type, parsedData.base_message);
-              break;
-            case "pong":
-              lastPongTime = Date.now();
-              break;
-          }
-        }
-      });
+    // Initialize the app
+    document.addEventListener('DOMContentLoaded', function() {
+      loadThreads();
     });
-
-    function startConnectionCheck() {
-      if (connectionCheckInterval) {
-        clearInterval(connectionCheckInterval);
-      }
-      connectionCheckInterval = setInterval(updateConnectionStatus, 1000);
-    }
-
-    function updateConnectionStatus() {
-      const timeSinceLastPong = Date.now() - lastPongTime;
-      
-      if (timeSinceLastPong < 30000) { // Less than 30 seconds
-        updateStatusIcon('status-green');
-        redStatusStartTime = null;
-        errorModalShown = false;
-      } else if (timeSinceLastPong < 50000) { // Between 30-50 seconds
-        updateStatusIcon('status-yellow');
-        redStatusStartTime = null;
-        errorModalShown = false;
-      } else { // More than 50 seconds
-        updateStatusIcon('status-red');
-        if (!redStatusStartTime) {
-          redStatusStartTime = Date.now();
-        } else if (Date.now() - redStatusStartTime > 5000 && !errorModalShown) { // 5 seconds in red status
-          showErrorModal();
-        }
-      }
-    }
-
-    function updateStatusIcon(statusClass) {
-      const statusIndicator = document.getElementById('connectionStatusIconForLlamaBot');
-      statusIndicator.classList.remove('status-green', 'status-yellow', 'status-red');
-      statusIndicator.classList.add(statusClass);
-    }
 
     function showErrorModal() {
       const modal = document.getElementById('errorModal');
       const overlay = document.getElementById('modalOverlay');
       modal.classList.add('visible');
       overlay.classList.add('visible');
-      errorModalShown = true;
     }
 
     function closeErrorModal() {
@@ -869,18 +757,11 @@
       }, 150);
     }
 
-    function sendMessage() {
+    async function sendMessage() {
       const input = document.getElementById('message-input');
       const message = input.value.trim();
       
       if (message) {
-        // Check if subscription is available
-        if (!subscription) {
-          console.error('WebSocket connection not established yet');
-          addMessage('Connection not ready. Please wait...', 'error');
-          return;
-        }
-
         // Clear welcome message if it exists
         const welcomeMessage = document.querySelector('.welcome-message');
         if (welcomeMessage) {
@@ -913,7 +794,28 @@
         };
         
         console.log('Sending message with data:', messageData);  // Debug log
-        subscription.send(messageData);
+        
+        try {
+          const response = await fetch('/llama_bot/agent/send_message', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify(messageData)
+          });
+
+          const result = await response.json();
+          console.log('Message sent successfully:', result);
+          
+          // Keep loading indicator visible to show LlamaBot is thinking
+          // It will be hidden when a real response comes back or manually by user
+          
+        } catch (error) {
+          console.error('Error sending message:', error);
+          hideLoadingIndicator();
+          addMessage('Error sending message. Please try again.', 'error');
+        }
       }
     }
 
