@@ -69,18 +69,34 @@ module LlamaBotRails
 
         # POST /agent/send-message
         def send_message
-            response.headers['Content-Type'] = 'text/event-stream' # JSON Lines MIME type
+            response.headers['Content-Type'] = 'text/plain; charset=utf-8'
             response.headers['Cache-Control'] = 'no-cache'
             response.headers['Connection'] = 'keep-alive'
+            response.headers['X-Accel-Buffering'] = 'no'  # Disable Nginx buffering
 
-            #TODO: Here is where we'll use AgentStateBuilder to build the right state for the agent.
-            message = params[:message]
-            thread_id = params[:thread_id]
-            agent_name = params[:agent_name]
+            @api_token = Rails.application.message_verifier(:llamabot_ws).generate(
+                { session_id: SecureRandom.uuid },
+                expires_in: 30.minutes
+              )
+
+            # 1. Instantiate the builder
+            builder = state_builder_class.new(
+                params: { message: params[:message] },
+                context: { thread_id: params[:thread_id], api_token: @api_token }
+            )
+    
+            # 2. Construct the LangGraph-ready state
+            state_payload = builder.build
 
             #The user is responsible for creating a custom AgentStateBuilder if they want to use a custom agent. Otherwise, we default to LlamaBotRails::AgentStateBuilder.
+            
+            # Send immediate start confirmation
+            start_chunk = { type: 'start', content: 'Stream started', timestamp: Time.current.iso8601 }
+            response.stream.write(start_chunk.to_json + "\n")
+            
             begin
-                LlamaBotRails::LlamaBot.send_agent_message(message, thread_id) do |chunk|
+                LlamaBotRails::LlamaBot.send_agent_message(state_payload) do |chunk|
+                    Rails.logger.info "[[LlamaBot]] Received AI chunk in agent_controller.rb: #{chunk}"
                     response.stream.write(chunk.to_json + "\n")
                 end
             rescue => exception
@@ -106,6 +122,10 @@ module LlamaBotRails
             @session_payload = Rails.application.message_verifier(:llamabot_ws).verify(token)
         rescue ActiveSupport::MessageVerifier::InvalidSignature
             head :unauthorized
+        end
+
+        def state_builder_class
+            LlamaBotRails.config.state_builder_class.constantize
         end
     end
 end

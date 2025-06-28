@@ -23,15 +23,15 @@ module LlamaBotRails
       []
     end
     
-    def self.send_agent_message(message, thread_id=nil, agent_name=nil)
-      return enum_for(__method__, message, thread_id, agent_name) unless block_given?
+    def self.send_agent_message(agent_params)
+      return enum_for(__method__, agent_params) unless block_given?
 
       uri = URI("http://localhost:8000/llamabot-chat-message")
       http = Net::HTTP.new(uri.host, uri.port)
       
       request = Net::HTTP::Post.new(uri)
       request['Content-Type'] = 'application/json'
-      request.body = { message: message, thread_id: thread_id }.to_json
+      request.body = agent_params.to_json
 
       # Stream the response instead of buffering it
       http.request(request) do |response|
@@ -39,6 +39,7 @@ module LlamaBotRails
           buffer = ''
           
           response.read_body do |chunk|
+            Rails.logger.info "[[LlamaBot]] Received chunk in LlamaBot.rb: #{chunk}"
             buffer += chunk
             
             # Process complete lines (ended with \n)
@@ -46,6 +47,7 @@ module LlamaBotRails
               line, buffer = buffer.split("\n", 2)
               if line.strip.present?
                 begin
+                  Rails.logger.info "[[LlamaBot]] Sending AI chunk in LlamaBot.rb: #{line}"
                   yield JSON.parse(line)
                 rescue JSON::ParserError => e
                   Rails.logger.error "Parse error: #{e.message}"
