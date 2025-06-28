@@ -8,7 +8,7 @@ module LlamaBotRails
       
       def build 
         {
-          user_message: @params[:message], # Rails param from JS/chat UI. This is the user's message to the agent.
+          message: @params[:message], # Rails param from JS/chat UI. This is the user's message to the agent.
           thread_id: @context[:thread_id], # This is the thread id for the agent. It is used to track the conversation history.
           api_token: @context[:api_token], # This is an authenticated API token for the agent, so that it can authenticate with us. (It may need access to resources on our Rails app, such as the Rails Console.)
           agent_prompt: LlamaBotRails.agent_prompt_text, # System prompt instructions for the agent. Can be customized in config/agent_prompt.txt
