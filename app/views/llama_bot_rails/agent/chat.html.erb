@@ -764,23 +764,7 @@
       loadingIndicator.classList.remove('visible');
     }
 
-    function updateLoadingStatus(status) {
-      const loadingText = document.querySelector('.loading-text');
-      if (loadingText) {
-        loadingText.innerHTML = `${status}<span class="loading-dots"></span>`;
-      }
-    }
 
-    function formatNodeName(nodeName) {
-      if (!nodeName) return 'Unknown';
-      
-      // Convert snake_case to Title Case
-      return nodeName
-        .replace(/_/g, ' ')
-        .replace(/([A-Z])/g, ' $1')
-        .replace(/\b\w/g, l => l.toUpperCase())
-        .trim();
-    }
 
     function setupStreamingTimeout() {
       // Clear any existing timeout
@@ -836,9 +820,8 @@
         addMessage(message, 'human');
         input.value = '';
 
-        // Show loading indicator with initial status
+        // Show loading indicator
         showLoadingIndicator();
-        updateLoadingStatus('Connecting to LlamaBot...');
 
         // Generate timestamp-based thread ID if we don't have one
         let threadId = currentThreadId;
@@ -875,8 +858,6 @@
             throw new Error(`HTTP error! status: ${response.status}`);
           }
           
-          updateLoadingStatus('Connected! LlamaBot is thinking...');
-          
           // Set up streaming timeout
           setupStreamingTimeout();
           
@@ -910,31 +891,33 @@
                   const chunk = JSON.parse(line);
                   console.log('Processing chunk:', chunk);
                   
-                  // Process different chunk types
-                  if (chunk.type === 'ai') {
-                    updateLoadingStatus('LlamaBot is responding...');
+                                    // Handle specific chunk types from Python backend
+                  if (chunk.type === 'start') {
+                    console.log('Stream started:', chunk.request_id || 'unknown');
+                    // Loading indicator already showing
+                  } else if (chunk.type === 'final') {
+                    console.log('Stream completed');
+                    hideLoadingIndicator();
+                    clearStreamingTimeout();
+                  } else if (chunk.type === 'error') {
+                    console.error('Server error:', chunk);
+                    hideLoadingIndicator();
+                    clearStreamingTimeout();
+                    addMessage(`Error: ${chunk.content || 'Unknown error occurred'}`, 'error');
+                  } else if (chunk.type === 'ai') {
+                    // AI message from LangGraph
                     addMessage(chunk.content, 'ai', chunk);
                     hideLoadingIndicator();
+                    clearStreamingTimeout();
                   } else if (chunk.type === 'tool') {
-                    updateLoadingStatus('LlamaBot is running tools...');
+                    // Tool message from LangGraph
                     addMessage(chunk.content, 'tool', chunk);
-                  } else if (chunk.type === 'start') {
-                    updateLoadingStatus('Processing your request...');
-                  } else if (chunk.type === 'update') {
-                    updateLoadingStatus(`Working on: ${formatNodeName(chunk.node || 'unknown')}...`);
-                                     } else if (chunk.type === 'final') {
-                     updateLoadingStatus('Complete!');
-                     hideLoadingIndicator();
-                     clearStreamingTimeout();
-                     console.log('Request completed successfully');
-                   } else if (chunk.type === 'error') {
-                     hideLoadingIndicator();
-                     clearStreamingTimeout();
-                     addMessage(`Error: ${chunk.error || 'Unknown error occurred'}`, 'error');
-                     console.error('Server error:', chunk);
                   } else {
-                    // Handle any other chunk types
-                    console.log('Unknown chunk type:', chunk.type, chunk);
+                    // Handle any other message types (human, etc.)
+                    if (chunk.content) {
+                      addMessage(chunk.content, chunk.type || 'unknown', chunk);
+                    }
+                    console.log('Other chunk type:', chunk.type, chunk);
                   }
                   
                 } catch (parseError) {
@@ -969,7 +952,6 @@
           console.error('Error in sendMessage:', error);
           hideLoadingIndicator();
           clearStreamingTimeout();
-          updateLoadingStatus('Error occurred');
           
           // Show specific error message based on error type
           let errorMessage = 'Error sending message. Please try again.';
@@ -984,63 +966,47 @@
       }
     }
 
-    function processChunk(chunk) {
+        function processChunk(chunk) {
       console.log('Processing chunk in fallback handler:', chunk);
       
-      // Handle different chunk types with comprehensive processing
+      // Handle specific chunk types from Python backend
       switch (chunk.type) {
-                 case 'ai':
-           updateLoadingStatus('LlamaBot is responding...');
-           addMessage(chunk.content, 'ai', chunk);
-           hideLoadingIndicator();
-           clearStreamingTimeout();
-           break;
+        case 'start':
+          console.log('Stream started:', chunk.request_id || 'unknown');
+          // Loading indicator already showing
+          break;
+          
+        case 'final':
+          console.log('Stream completed');
+          hideLoadingIndicator();
+          clearStreamingTimeout();
+          break;
+          
+        case 'error':
+          console.error('Server error:', chunk);
+          hideLoadingIndicator();
+          clearStreamingTimeout();
+          addMessage(`Error: ${chunk.content || 'Unknown error occurred'}`, 'error');
+          break;
+          
+        case 'ai':
+          // AI message from LangGraph
+          addMessage(chunk.content, 'ai', chunk);
+          hideLoadingIndicator();
+          clearStreamingTimeout();
+          break;
           
         case 'tool':
-          updateLoadingStatus('LlamaBot is running tools...');
+          // Tool message from LangGraph
           addMessage(chunk.content, 'tool', chunk);
           break;
           
-        case 'start':
-          updateLoadingStatus('Processing your request...');
-          console.log('Request started:', chunk.request_id || 'unknown');
-          break;
-          
-        case 'update':
-          const nodeName = formatNodeName(chunk.node || 'unknown');
-          updateLoadingStatus(`Working on: ${nodeName}...`);
-          console.log('Processing node:', chunk.node, chunk);
-          break;
-          
-                 case 'final':
-           updateLoadingStatus('Complete!');
-           hideLoadingIndicator();
-           clearStreamingTimeout();
-           console.log('Request completed successfully');
-           
-           // Display final message if available
-           if (chunk.messages && chunk.messages.length > 0) {
-             const lastMessage = chunk.messages[chunk.messages.length - 1];
-             if (lastMessage && lastMessage.content) {
-               addMessage(lastMessage.content, lastMessage.type || 'ai', lastMessage);
-             }
-           }
-           break;
-           
-         case 'error':
-           hideLoadingIndicator();
-           clearStreamingTimeout();
-           const errorMsg = chunk.error || chunk.message || 'Unknown error occurred';
-           addMessage(`Error: ${errorMsg}`, 'error');
-           console.error('Server error:', chunk);
-           break;
-          
         default:
-          console.log('Unknown chunk type:', chunk.type, chunk);
-          // Still try to process it as a generic message if it has content
+          // Handle any other message types
           if (chunk.content) {
             addMessage(chunk.content, chunk.type || 'unknown', chunk);
           }
+          console.log('Other chunk type:', chunk.type, chunk);
           break;
       }
     }
