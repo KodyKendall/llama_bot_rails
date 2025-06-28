@@ -27,58 +27,44 @@ module LlamaBotRails
       return enum_for(__method__, message, thread_id, agent_name) unless block_given?
 
       uri = URI("http://localhost:8000/llamabot-chat-message")
-
-      # Create the HTTP request with proper headers
       http = Net::HTTP.new(uri.host, uri.port)
+      
       request = Net::HTTP::Post.new(uri)
       request['Content-Type'] = 'application/json'
-      
-      # Build the request body to match the Pydantic ChatMessage schema
-      request_body = {
-        message: message
-      }
-      
-      # Only include optional fields if they have values
-      request_body[:thread_id] = thread_id if thread_id.present?
-      request_body[:agent] = agent_name if agent_name.present?
-      
-      request.body = request_body.to_json
-      
-      response = http.request(request)
+      request.body = { message: message, thread_id: thread_id }.to_json
 
-      if response.code.to_i == 200
-        json_blobs = response.body.strip.split("\n")
-        
-        json_blobs.each do |blob|
-          begin
-            yield JSON.parse(blob)
-          rescue JSON::ParserError => e
-            Rails.logger.error "Parse error: #{e.message}"
+      # Stream the response instead of buffering it
+      http.request(request) do |response|
+        if response.code.to_i == 200
+          buffer = ''
+          
+          response.read_body do |chunk|
+            buffer += chunk
+            byebug
+            
+            # Process complete lines (ended with \n)
+            while buffer.include?("\n")
+              line, buffer = buffer.split("\n", 2)
+              if line.strip.present?
+                begin
+                  yield JSON.parse(line)
+                rescue JSON::ParserError => e
+                  Rails.logger.error "Parse error: #{e.message}"
+                end
+              end
+            end
+          end
+          
+          # Process any remaining data in buffer
+          if buffer.strip.present?
+            begin
+              yield JSON.parse(buffer)
+            rescue JSON::ParserError => e
+              Rails.logger.error "Final buffer parse error: #{e.message}"
+            end
           end
         end
       end
-
-      # if response.code.to_i == 200
-      #   # Step 1: Get the body
-      #   body = response.body
-
-      #   # Step 2: Split by newline in case there are multiple JSON blobs
-      #   json_blobs = body.strip.split("\n")
-
-      #   # Step 3: Parse each blob
-      #   parsed_objects = json_blobs.map { |blob| JSON.parse(blob) }
-
-      #   # Now you have an array of parsed JSON (as Ruby objects)
-      #   return JSON(parsed_objects[0])
-
-      # else
-      #   Rails.logger.error "HTTP Error #{response.code}: #{response.body}"
-      #   { 
-      #     success: false,
-      #     error: "HTTP #{response.code}", 
-      #     body: response.body 
-      #   }
-      # end
     rescue => e
       Rails.logger.error "Error sending agent message: #{e.message}"
       { error: e.message }
