@@ -383,7 +383,7 @@
       color: var(--text-secondary);
     }
 
-    /* Clean loading indicator - just animated text */
+    /* Enhanced loading indicator with status updates */
     .loading-indicator {
       display: none;
       align-items: center;
@@ -394,6 +394,8 @@
       background: rgba(255, 255, 255, 0.02);
       border-radius: 8px;
       border: 1px solid rgba(255, 255, 255, 0.08);
+      transition: all 0.3s ease;
+      min-height: 50px; /* Prevent layout shift during status updates */
     }
 
     .loading-indicator.visible {
@@ -402,11 +404,15 @@
 
     .loading-text {
       font-style: italic;
+      flex: 1;
+      transition: color 0.3s ease;
+      line-height: 1.4;
     }
 
     .loading-dots::after {
       content: '';
       animation: dots 1.5s steps(4, end) infinite;
+      opacity: 0.7;
     }
 
     @keyframes dots {
@@ -414,6 +420,22 @@
       40% { content: '.'; }
       60% { content: '..'; }
       80%, 100% { content: '...'; }
+    }
+
+    /* Status-specific styling */
+    .loading-indicator:has(.loading-text:contains("Error")) {
+      border-color: rgba(244, 67, 54, 0.3);
+      background: rgba(244, 67, 54, 0.05);
+    }
+
+    .loading-indicator:has(.loading-text:contains("Complete")) {
+      border-color: rgba(76, 175, 80, 0.3);
+      background: rgba(76, 175, 80, 0.05);
+    }
+
+    .loading-indicator:has(.loading-text:contains("Connected")) {
+      border-color: rgba(33, 150, 243, 0.3);
+      background: rgba(33, 150, 243, 0.05);
     }
 
     /* Suggested Prompts Styling - Always visible above input */
@@ -563,6 +585,8 @@
   <script>
     let currentThreadId = null;
     let isSidebarCollapsed = false;
+    let streamingTimeout = null;
+    const STREAMING_TIMEOUT_MS = 30000; // 30 seconds timeout
 
     // Initialize the app
     document.addEventListener('DOMContentLoaded', function() {
@@ -740,6 +764,47 @@
       loadingIndicator.classList.remove('visible');
     }
 
+    function updateLoadingStatus(status) {
+      const loadingText = document.querySelector('.loading-text');
+      if (loadingText) {
+        loadingText.innerHTML = `${status}<span class="loading-dots"></span>`;
+      }
+    }
+
+    function formatNodeName(nodeName) {
+      if (!nodeName) return 'Unknown';
+      
+      // Convert snake_case to Title Case
+      return nodeName
+        .replace(/_/g, ' ')
+        .replace(/([A-Z])/g, ' $1')
+        .replace(/\b\w/g, l => l.toUpperCase())
+        .trim();
+    }
+
+    function setupStreamingTimeout() {
+      // Clear any existing timeout
+      if (streamingTimeout) {
+        clearTimeout(streamingTimeout);
+      }
+      
+      // Set up new timeout
+      streamingTimeout = setTimeout(() => {
+        console.warn('Streaming timeout reached');
+        hideLoadingIndicator();
+        addMessage('Request timed out. LlamaBot may be processing a complex request. Please try again.', 'error');
+      }, STREAMING_TIMEOUT_MS);
+    }
+
+    function clearStreamingTimeout() {
+      if (streamingTimeout) {
+        clearTimeout(streamingTimeout);
+        streamingTimeout = null;
+      }
+    }
+
+
+
     function selectPrompt(buttonElement) {
       const promptText = buttonElement.textContent;
       const messageInput = document.getElementById('message-input');
@@ -771,8 +836,9 @@
         addMessage(message, 'human');
         input.value = '';
 
-        // Show loading indicator
+        // Show loading indicator with initial status
         showLoadingIndicator();
+        updateLoadingStatus('Connecting to LlamaBot...');
 
         // Generate timestamp-based thread ID if we don't have one
         let threadId = currentThreadId;
@@ -793,9 +859,10 @@
           thread_id: threadId
         };
         
-        console.log('Sending message with data:', messageData);  // Debug log
+        console.log('Sending message with data:', messageData);
         
         try {
+          // Set up fetch for streaming
           const response = await fetch('/llama_bot/agent/send_message', {
             method: 'POST',
             headers: {
@@ -803,47 +870,178 @@
             },
             body: JSON.stringify(messageData)
           });
-
+          
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          
+          updateLoadingStatus('Connected! LlamaBot is thinking...');
+          
+          // Set up streaming timeout
+          setupStreamingTimeout();
+          
+          // Set up the reader for the stream
           const reader = response.body.getReader();
           const decoder = new TextDecoder();
           let buffer = '';
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            buffer += decoder.decode(value, { stream: true });
-            console.log('Received chunk:', buffer);
+          
+          try {
+            // Process the stream
+            while (true) {
+              const { done, value } = await reader.read();
+              
+              if (done) {
+                console.log('Stream completed');
+                clearStreamingTimeout();
+                break;
+              }
+              
+              // Decode the chunk and add to buffer
+              buffer += decoder.decode(value, { stream: true });
+              
+              // Process complete lines in the buffer
+              const lines = buffer.split('\n');
+              buffer = lines.pop() || ''; // Keep the last incomplete line in the buffer
+              
+              for (const line of lines) {
+                if (line.trim() === '') continue;
+                
+                try {
+                  const chunk = JSON.parse(line);
+                  console.log('Processing chunk:', chunk);
+                  
+                  // Process different chunk types
+                  if (chunk.type === 'ai') {
+                    updateLoadingStatus('LlamaBot is responding...');
+                    addMessage(chunk.content, 'ai', chunk);
+                    hideLoadingIndicator();
+                  } else if (chunk.type === 'tool') {
+                    updateLoadingStatus('LlamaBot is running tools...');
+                    addMessage(chunk.content, 'tool', chunk);
+                  } else if (chunk.type === 'start') {
+                    updateLoadingStatus('Processing your request...');
+                  } else if (chunk.type === 'update') {
+                    updateLoadingStatus(`Working on: ${formatNodeName(chunk.node || 'unknown')}...`);
+                                     } else if (chunk.type === 'final') {
+                     updateLoadingStatus('Complete!');
+                     hideLoadingIndicator();
+                     clearStreamingTimeout();
+                     console.log('Request completed successfully');
+                   } else if (chunk.type === 'error') {
+                     hideLoadingIndicator();
+                     clearStreamingTimeout();
+                     addMessage(`Error: ${chunk.error || 'Unknown error occurred'}`, 'error');
+                     console.error('Server error:', chunk);
+                  } else {
+                    // Handle any other chunk types
+                    console.log('Unknown chunk type:', chunk.type, chunk);
+                  }
+                  
+                } catch (parseError) {
+                  console.error('Error parsing stream data:', parseError, 'Line:', line);
+                }
+              }
+            }
+            
+            // Process any remaining data in buffer using same line-splitting logic
+            if (buffer.trim()) {
+              console.log('Processing final buffer:', buffer.length, 'characters');
+              const finalLines = buffer.split('\n');
+              
+              for (const line of finalLines) {
+                if (line.trim() === '') continue;
+                
+                try {
+                  const chunk = JSON.parse(line);
+                  console.log('Parsed final buffer chunk:', chunk);
+                  processChunk(chunk);
+                } catch (parseError) {
+                  console.error('Error parsing final buffer line:', parseError, 'Line:', line);
+                }
+              }
+            }
+            
+          } finally {
+            reader.releaseLock();
           }
-
-          debugger;
-
-          //const result = await response.json();
-          //console.log('Message sent successfully:', result);
-          //
-          //// Keep loading indicator visible to show LlamaBot is thinking
-          //// It will be hidden when a real response comes back or manually by user
-          //debugger;
-          //const parsedData = JSON.parse(result).message;
-          //switch (parsedData.type) {
-          //  case "ai":
-          //    addMessage(parsedData.content, parsedData.type, parsedData.base_message);
-          //    break;
-          //  case "tool":
-          //    addMessage(parsedData.content, parsedData.type, parsedData.base_message);
-          //    break;
-          //  case "error":
-          //    addMessage(parsedData.content, parsedData.type, parsedData.base_message);
-          //    break;
-          //  case "pong":
-          //    lastPongTime = Date.now();
-          //    break;
-          //}
-
           
         } catch (error) {
-          console.error('Error sending message:', error);
+          console.error('Error in sendMessage:', error);
           hideLoadingIndicator();
-          addMessage('Error sending message. Please try again.', 'error');
+          clearStreamingTimeout();
+          updateLoadingStatus('Error occurred');
+          
+          // Show specific error message based on error type
+          let errorMessage = 'Error sending message. Please try again.';
+          if (error.name === 'TypeError' && error.message.includes('fetch')) {
+            errorMessage = 'Connection error. Please check if LlamaBot is running.';
+          } else if (error.message.includes('HTTP error')) {
+            errorMessage = `Server error: ${error.message}`;
+          }
+          
+          addMessage(errorMessage, 'error');
         }
+      }
+    }
+
+    function processChunk(chunk) {
+      console.log('Processing chunk in fallback handler:', chunk);
+      
+      // Handle different chunk types with comprehensive processing
+      switch (chunk.type) {
+                 case 'ai':
+           updateLoadingStatus('LlamaBot is responding...');
+           addMessage(chunk.content, 'ai', chunk);
+           hideLoadingIndicator();
+           clearStreamingTimeout();
+           break;
+          
+        case 'tool':
+          updateLoadingStatus('LlamaBot is running tools...');
+          addMessage(chunk.content, 'tool', chunk);
+          break;
+          
+        case 'start':
+          updateLoadingStatus('Processing your request...');
+          console.log('Request started:', chunk.request_id || 'unknown');
+          break;
+          
+        case 'update':
+          const nodeName = formatNodeName(chunk.node || 'unknown');
+          updateLoadingStatus(`Working on: ${nodeName}...`);
+          console.log('Processing node:', chunk.node, chunk);
+          break;
+          
+                 case 'final':
+           updateLoadingStatus('Complete!');
+           hideLoadingIndicator();
+           clearStreamingTimeout();
+           console.log('Request completed successfully');
+           
+           // Display final message if available
+           if (chunk.messages && chunk.messages.length > 0) {
+             const lastMessage = chunk.messages[chunk.messages.length - 1];
+             if (lastMessage && lastMessage.content) {
+               addMessage(lastMessage.content, lastMessage.type || 'ai', lastMessage);
+             }
+           }
+           break;
+           
+         case 'error':
+           hideLoadingIndicator();
+           clearStreamingTimeout();
+           const errorMsg = chunk.error || chunk.message || 'Unknown error occurred';
+           addMessage(`Error: ${errorMsg}`, 'error');
+           console.error('Server error:', chunk);
+           break;
+          
+        default:
+          console.log('Unknown chunk type:', chunk.type, chunk);
+          // Still try to process it as a generic message if it has content
+          if (chunk.content) {
+            addMessage(chunk.content, chunk.type || 'unknown', chunk);
+          }
+          break;
       }
     }
 

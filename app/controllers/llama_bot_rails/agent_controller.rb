@@ -81,7 +81,7 @@ module LlamaBotRails
             #The user is responsible for creating a custom AgentStateBuilder if they want to use a custom agent. Otherwise, we default to LlamaBotRails::AgentStateBuilder.
             begin
                 LlamaBotRails::LlamaBot.send_agent_message(message, thread_id) do |chunk|
-                    response.stream.write(chunk.to_json)
+                    response.stream.write(chunk.to_json + "\n")
                 end
             rescue => exception
                 Rails.logger.error "Error in send_message action: #{exception.message}"

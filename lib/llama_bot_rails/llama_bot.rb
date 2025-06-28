@@ -40,7 +40,6 @@ module LlamaBotRails
           
           response.read_body do |chunk|
             buffer += chunk
-            byebug
             
             # Process complete lines (ended with \n)
             while buffer.include?("\n")
