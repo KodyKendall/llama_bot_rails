@@ -71,8 +71,10 @@ module LlamaBotRails
             message = params[:message]
             thread_id = params[:thread_id]
             agent_name = params[:agent_name]
-            LlamaBotRails::LlamaBot.send_agent_message(message, thread_id, agent_name)
-            render json: { message: "Message sent" }
+            response = LlamaBotRails::LlamaBot.send_agent_message(message, thread_id, agent_name)
+            # byebug
+            render json: response
+            # render json: { message: "Message sent" }
         end
 
         private 

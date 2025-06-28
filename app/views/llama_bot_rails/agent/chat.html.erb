@@ -810,6 +810,23 @@
           
           // Keep loading indicator visible to show LlamaBot is thinking
           // It will be hidden when a real response comes back or manually by user
+          debugger;
+          const parsedData = JSON.parse(result).message;
+          switch (parsedData.type) {
+            case "ai":
+              addMessage(parsedData.content, parsedData.type, parsedData.base_message);
+              break;
+            case "tool":
+              addMessage(parsedData.content, parsedData.type, parsedData.base_message);
+              break;
+            case "error":
+              addMessage(parsedData.content, parsedData.type, parsedData.base_message);
+              break;
+            case "pong":
+              lastPongTime = Date.now();
+              break;
+          }
+
           
         } catch (error) {
           console.error('Error sending message:', error);
