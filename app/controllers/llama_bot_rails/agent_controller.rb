@@ -1,6 +1,7 @@
 require 'llama_bot_rails/llama_bot'
 module LlamaBotRails
     class AgentController < ActionController::Base
+        include ActionController::Live
         skip_before_action :verify_authenticity_token, only: [:command, :send_message]
         before_action :authenticate_agent!, only: [:command]
 
@@ -68,13 +69,25 @@ module LlamaBotRails
 
         # POST /agent/send-message
         def send_message
+            response.headers['Content-Type'] = 'text/event-stream' # JSON Lines MIME type
+            response.headers['Cache-Control'] = 'no-cache'
+            response.headers['Connection'] = 'keep-alive'
+
+            #TODO: Here is where we'll use AgentStateBuilder to build the right state for the agent.
             message = params[:message]
             thread_id = params[:thread_id]
             agent_name = params[:agent_name]
-            response = LlamaBotRails::LlamaBot.send_agent_message(message, thread_id, agent_name)
-            # byebug
-            render json: response
-            # render json: { message: "Message sent" }
+
+            #The user is responsible for creating a custom AgentStateBuilder if they want to use a custom agent. Otherwise, we default to LlamaBotRails::AgentStateBuilder.
+            begin
+                LlamaBotRails::LlamaBot.send_agent_message(message, thread_id) do |chunk|
+                    response.stream.write(chunk.to_json)
+                end
+            rescue => exception
+                Rails.logger.error "Error in send_message action: #{exception.message}"
+            ensure
+                response.stream.close
+            end
         end
 
         private 

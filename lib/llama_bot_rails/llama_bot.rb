@@ -24,6 +24,8 @@ module LlamaBotRails
     end
     
     def self.send_agent_message(message, thread_id=nil, agent_name=nil)
+      return enum_for(__method__, message, thread_id, agent_name) unless block_given?
+
       uri = URI("http://localhost:8000/llamabot-chat-message")
 
       # Create the HTTP request with proper headers
@@ -45,26 +47,38 @@ module LlamaBotRails
       response = http.request(request)
 
       if response.code.to_i == 200
-        # Step 1: Get the body
-        body = response.body
-
-        # Step 2: Split by newline in case there are multiple JSON blobs
-        json_blobs = body.strip.split("\n")
-
-        # Step 3: Parse each blob
-        parsed_objects = json_blobs.map { |blob| JSON.parse(blob) }
-
-        # Now you have an array of parsed JSON (as Ruby objects)
-        return JSON(parsed_objects[0])
-
-      else
-        Rails.logger.error "HTTP Error #{response.code}: #{response.body}"
-        { 
-          success: false,
-          error: "HTTP #{response.code}", 
-          body: response.body 
-        }
+        json_blobs = response.body.strip.split("\n")
+        
+        json_blobs.each do |blob|
+          begin
+            yield JSON.parse(blob)
+          rescue JSON::ParserError => e
+            Rails.logger.error "Parse error: #{e.message}"
+          end
+        end
       end
+
+      # if response.code.to_i == 200
+      #   # Step 1: Get the body
+      #   body = response.body
+
+      #   # Step 2: Split by newline in case there are multiple JSON blobs
+      #   json_blobs = body.strip.split("\n")
+
+      #   # Step 3: Parse each blob
+      #   parsed_objects = json_blobs.map { |blob| JSON.parse(blob) }
+
+      #   # Now you have an array of parsed JSON (as Ruby objects)
+      #   return JSON(parsed_objects[0])
+
+      # else
+      #   Rails.logger.error "HTTP Error #{response.code}: #{response.body}"
+      #   { 
+      #     success: false,
+      #     error: "HTTP #{response.code}", 
+      #     body: response.body 
+      #   }
+      # end
     rescue => e
       Rails.logger.error "Error sending agent message: #{e.message}"
       { error: e.message }

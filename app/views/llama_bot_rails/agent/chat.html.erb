@@ -800,32 +800,43 @@
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'X-Requested-With': 'XMLHttpRequest'
             },
             body: JSON.stringify(messageData)
           });
 
-          const result = await response.json();
-          console.log('Message sent successfully:', result);
-          
-          // Keep loading indicator visible to show LlamaBot is thinking
-          // It will be hidden when a real response comes back or manually by user
-          debugger;
-          const parsedData = JSON.parse(result).message;
-          switch (parsedData.type) {
-            case "ai":
-              addMessage(parsedData.content, parsedData.type, parsedData.base_message);
-              break;
-            case "tool":
-              addMessage(parsedData.content, parsedData.type, parsedData.base_message);
-              break;
-            case "error":
-              addMessage(parsedData.content, parsedData.type, parsedData.base_message);
-              break;
-            case "pong":
-              lastPongTime = Date.now();
-              break;
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = '';
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            console.log('Received chunk:', buffer);
           }
+
+          debugger;
+
+          //const result = await response.json();
+          //console.log('Message sent successfully:', result);
+          //
+          //// Keep loading indicator visible to show LlamaBot is thinking
+          //// It will be hidden when a real response comes back or manually by user
+          //debugger;
+          //const parsedData = JSON.parse(result).message;
+          //switch (parsedData.type) {
+          //  case "ai":
+          //    addMessage(parsedData.content, parsedData.type, parsedData.base_message);
+          //    break;
+          //  case "tool":
+          //    addMessage(parsedData.content, parsedData.type, parsedData.base_message);
+          //    break;
+          //  case "error":
+          //    addMessage(parsedData.content, parsedData.type, parsedData.base_message);
+          //    break;
+          //  case "pong":
+          //    lastPongTime = Date.now();
+          //    break;
+          //}
 
           
         } catch (error) {
