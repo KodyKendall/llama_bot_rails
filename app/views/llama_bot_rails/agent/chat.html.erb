@@ -792,7 +792,6 @@
     //testStreaming();
 
     async function testStreaming() {
-      debugger;
       const response = await fetch('/llama_bot/agent/test_streaming');
       const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
       const decoder = new TextDecoder();
@@ -919,7 +918,7 @@
               // Decode the chunk and add to buffer
               buffer += decoder.decode(value, { stream: true });
               
-              // Process complete SSE events (separated by \n\n)
+              // Process complete SSE events (separated by \n\n). These \n\n are added by the Rails middleware to make sure it exists.
               while (buffer.includes('\n\n')) {
                 const eventEnd = buffer.indexOf('\n\n');
                 const eventBlock = buffer.slice(0, eventEnd);
@@ -928,7 +927,9 @@
                 // Parse SSE event
                 const dataLines = eventBlock.split('\n').filter(line => line.startsWith('data:'));
                 if (dataLines.length > 0) {
-                  const jsonData = dataLines.map(line => line.substring(5).trim()).join('');
+                  
+                  //remove the 'data:' prefix from the line
+                  const jsonData = dataLines.map(line => line.substring(5).trim()).join(''); 
                   
                   try {
                     const chunk = JSON.parse(jsonData);
@@ -987,7 +988,7 @@
       }
     }
 
-        function processChunk(chunk) {
+    function processChunk(chunk) {
       console.log('Processing chunk in fallback handler:', chunk);
       
       // Handle specific chunk types from Python backend
