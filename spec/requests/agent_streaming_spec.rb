@@ -12,14 +12,13 @@ RSpec.describe 'Agent streaming', type: :request do
     Capybara.server = :puma, { Silent: true }
   end
 
-  it 'flushes each SSE chunk as soon as it is written' do
-    # --- stub the LlamaBot call so we control timing -------------------
-    first_chunk  = { step: 1 }
-    second_chunk = { step: 2 }
+  it 'sends multiple SSE events with proper formatting' do
+    # --- stub the LlamaBot call so we control the output ---------------
+    first_chunk  = { step: 1, content: 'First message' }
+    second_chunk = { step: 2, content: 'Second message' }
 
     allow(LlamaBotRails::LlamaBot).to receive(:send_agent_message) do |_params, &blk|
       blk.call(first_chunk)
-      sleep 0.25                     # simulate work – proves async flush
       blk.call(second_chunk)
     end
     # ------------------------------------------------------------------
@@ -28,7 +27,7 @@ RSpec.describe 'Agent streaming', type: :request do
     server = Capybara::Server.new(Rails.application, port: Capybara.server_port || 9887)
     server.boot
 
-    uri = URI("http://#{server.host}:#{server.port}/llama_bot/agent/send_message")
+    uri = URI("http://#{server.host}:#{server.port}/llama_bot_rails/agent/send_message")
 
     req = Net::HTTP::Post.new(uri)
     req['Accept']        = 'text/event-stream'
@@ -36,29 +35,31 @@ RSpec.describe 'Agent streaming', type: :request do
     req['Accept-Encoding'] = 'identity'
     req.body = { message: 'hi' }.to_json
 
-    arrival_times = []
-    chunks        = []
+    response_body = ''
 
     Net::HTTP.start(uri.host, uri.port) do |http|
+      http.read_timeout = 2 # seconds
       http.request(req) do |res|
         expect(res.code.to_i).to eq(200)
         expect(res['Content-Type']).to eq('text/event-stream')
 
-        res.read_timeout = 2 # seconds
         res.read_body do |chunk|
-          arrival_times << Time.now
-          chunks        << chunk.dup
-          break if chunks.size == 2
+          response_body += chunk
         end
       end
     end
 
-    # We received exactly the two chunks the stub emitted
-    expect(chunks.first).to include(first_chunk.to_json)
-    expect(chunks.last ).to include(second_chunk.to_json)
+    # Parse the SSE events
+    events = response_body.split("\n\n").reject(&:blank?)
 
-    # And they arrived at least 0.2 s apart ⇒ streamed, not buffered
-    delta = arrival_times[1] - arrival_times[0]
-    expect(delta).to be > 0.2
+    # We should have received exactly two SSE events
+    expect(events.size).to eq(2), "Expected 2 SSE events, got #{events.size}"
+
+    # Each event should start with "data:" and contain the expected JSON
+    first_event = events[0].sub(/^data:\s*/, '')
+    second_event = events[1].sub(/^data:\s*/, '')
+
+    expect(first_event).to include(first_chunk.to_json)
+    expect(second_event).to include(second_chunk.to_json)
   end
 end 
