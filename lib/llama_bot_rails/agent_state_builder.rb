@@ -6,6 +6,10 @@ module LlamaBotRails
         @context = context
       end
       
+
+      # Warning: Types must match exactly or you'll get Pydantic errors. It's brittle - If these don't match exactly what's in nodes.py LangGraph state pydantic types, (For example, having a null value/None type when it should be a string) it will the agent.. 
+      # So if it doesn't map state types properly from the frontend, it will break. (must be exactly what's defined here).
+      # There won't be an exception thrown -- instead, you'll get an pydantic error message showing up in the BaseMessage content field. (In my case, it was a broken ToolMessage, but serializes from the inherited BaseMessage)
       def build 
         {
           message: @params[:message], # Rails param from JS/chat UI. This is the user's message to the agent.
