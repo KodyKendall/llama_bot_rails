@@ -39,6 +39,11 @@ module LlamaBotRails
             # Render chat.html.erb
         end
 
+        # GET /agent/chat_ws
+        def chat_ws
+            # render chat_ws.html.erb
+        end
+
         def threads
             begin
                 threads = LlamaBotRails::LlamaBot.get_threads
@@ -126,10 +131,16 @@ module LlamaBotRails
         private 
 
         def safety_eval(input)
-            # Change to Rails root directory for file operations
-            Dir.chdir(Rails.root) do
-                # Create a safer evaluation context
-                binding.eval(input)
+            begin
+                # Change to Rails root directory for file operations
+                Dir.chdir(Rails.root) do
+                    # Create a safer evaluation context
+                    Rails.logger.info "[[LlamaBot]] Evaluating input: #{input}"
+                    binding.eval(input)
+                end
+            rescue => exception
+                Rails.logger.error "Error in safety_eval: #{exception.message}"
+                return exception.message
             end
         end
 
