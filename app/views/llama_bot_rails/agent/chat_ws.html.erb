@@ -1,0 +1,1178 @@
+<%# Why support both a websocket connection, (chat_channel.rb), and a non-websocket SSE connection?
+
+Rails 6 wasn’t working with our ActionCable websocket connection, so I wanted to implement SSE as well.
+
+We want to support a generic HTML interface that isn’t dependent on rails. (In case the Rails server goes down for whatever reason, we don’t lose access to LlamaBot).
+
+Why have chat_channel.rb at all?
+
+Because Ruby on Rails lacks good tooling to handle real-time interaction, that isn’t through ActionCable. 
+For “cancel” requests. Websocket is a 2 way connection, so we can send a ‘cancel’ in. 
+To support legacy LlamaPress stuff. 
+We chose to implement it with ActionCable plus Async Websockets.
+But, it’s Ruby on Rails specific, and is best for UI/UX experiences.
+
+SSE is better for other clients that aren’t Ruby on Rails specific, and if you want to handle just a simple SSE approach.
+
+This does add some complexity though.
+
+You now have 2 different paradigms of front-end JavaScript consuming from LlamaBot
+ActionCable consumption
+StreamedResponse consumption.
+
+You also have 2 new middleware layers:
+ActionCable <-> chat_channel.rb <-> /ws <-> request_handler.py
+HTTPS <-> agent_controller.rb <-> LlamaBot.rb <-> FastAPI HTTPS
+
+So this increases our overall surface area for the application. 
+
+This deprecated and will be removed over time.
+%>
+
+<!DOCTYPE html>
+<html>
+<head>
+  <title>LlamaBot Chat</title>
+  <style>
+    :root {
+      --bg-primary: #1a1a1a;
+      --bg-secondary: #2d2d2d;
+      --text-primary: #ffffff;
+      --text-secondary: #b3b3b3;
+      --accent-color: #2196f3;
+      --error-color: #f44336;
+      --success-color: #4caf50;
+      --sidebar-width: 250px;
+      --sidebar-collapsed-width: 60px;
+      --header-height: 80px;
+    }
+
+    body {
+      background-color: var(--bg-primary);
+      color: var(--text-primary);
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    }
+
+    .app-container {
+      display: flex;
+      height: 100vh;
+      position: relative;
+      overflow: hidden;  /* Prevent content from causing horizontal scroll */
+    }
+
+    .threads-sidebar {
+      width: var(--sidebar-width);
+      background-color: var(--bg-secondary);
+      padding: 20px;
+      border-right: 1px solid #404040;
+      overflow-y: auto;
+      transition: width 0.3s ease;
+      position: relative;
+      flex-shrink: 0;  /* Prevent sidebar from shrinking */
+      min-width: var(--sidebar-width);  /* Ensure minimum width */
+    }
+
+    .threads-sidebar.collapsed {
+      width: var(--sidebar-collapsed-width);
+      min-width: var(--sidebar-collapsed-width);  /* Update min-width when collapsed */
+      padding: 20px 10px;
+    }
+
+    .threads-sidebar.collapsed .thread-item {
+      display: none;
+    }
+
+    .threads-sidebar.collapsed h2 {
+      display: none;
+    }
+
+    .thread-item {
+      padding: 10px;
+      margin-bottom: 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .thread-item:hover {
+      background-color: #404040;
+    }
+
+    .thread-item.active {
+      background-color: var(--accent-color);
+    }
+
+    .chat-container {
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 20px;
+      transition: margin-left 0.3s ease;
+      min-width: 0;  /* Allow container to shrink below its content size */
+      overflow: hidden;  /* Prevent content from causing horizontal scroll */
+    }
+
+    .chat-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+      height: var(--header-height);
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+    }
+
+    .compose-button {
+      background-color: var(--accent-color);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 8px 16px;
+      cursor: pointer;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: background-color 0.2s;
+    }
+
+    .compose-button:hover {
+      background-color: #1976d2;
+    }
+
+    .welcome-message {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--text-secondary);
+    }
+
+    .welcome-message h2 {
+      color: var(--text-primary);
+      margin-bottom: 10px;
+      font-size: 24px;
+    }
+
+    .welcome-message p {
+      font-size: 16px;
+      margin: 0;
+    }
+
+    .logo-container {
+      position: relative;
+      display: inline-block;
+      margin-right: 10px;
+    }
+
+    .logo {
+      width: 40px;
+      height: 40px;
+      display: block;
+    }
+
+    .connection-status {
+      position: absolute;
+      bottom: -2px;
+      right: -2px;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      border: 2px solid var(--bg-primary);
+      transition: background-color 0.3s ease;
+      z-index: 10;
+      pointer-events: none;
+    }
+
+    .status-green {
+      background-color: #22c55e !important;
+    } 
+
+    .status-yellow {
+      background-color: #eab308 !important;
+    }
+
+    .status-red {
+      background-color: #ef4444 !important;
+    }
+
+    .error-modal {
+      display: none;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background-color: var(--bg-secondary);
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      z-index: 1000;
+    }
+
+    .error-modal.visible {
+      display: block;
+    }
+
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: rgba(0, 0, 0, 0.5);
+      z-index: 999;
+    }
+
+    .modal-overlay.visible {
+      display: block;
+    }
+
+    .heart-animation {
+      font-size: 24px;
+      color: #e91e63;
+      margin: 0 10px;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .heart-animation.visible {
+      opacity: 1;
+    }
+
+    .toggle-sidebar {
+      background: none;
+      border: none;
+      color: var(--text-primary);
+      cursor: pointer;
+      padding: 8px;
+      margin-right: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.3s ease;
+    }
+
+    .toggle-sidebar:hover {
+      background-color: var(--bg-secondary);
+      border-radius: 4px;
+    }
+
+    .toggle-sidebar.collapsed {
+      transform: rotate(180deg);
+    }
+
+    .chat-messages {
+      flex-grow: 1;
+      border: 1px solid #404040;
+      border-radius: 8px;
+      padding: 20px;
+      overflow-y: auto;
+      margin-bottom: 20px;
+      background-color: var(--bg-secondary);
+    }
+
+    .message {
+      margin-bottom: 10px;
+      padding: 8px;
+      border-radius: 4px;
+      max-width: 80%;
+      word-wrap: break-word;
+      line-height: 1.4;
+    }
+
+    .message code {
+      background-color: rgba(255, 255, 255, 0.1);
+      padding: 2px 4px;
+      border-radius: 3px;
+      font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+      font-size: 0.9em;
+    }
+
+    .message pre {
+      background-color: rgba(255, 255, 255, 0.1);
+      padding: 8px;
+      border-radius: 4px;
+      overflow-x: auto;
+      margin: 8px 0;
+    }
+
+    .message pre code {
+      background: none;
+      padding: 0;
+    }
+
+    .message ul, .message ol {
+      margin: 8px 0;
+      padding-left: 20px;
+    }
+
+    .message li {
+      margin: 4px 0;
+    }
+
+    .message strong {
+      font-weight: bold;
+    }
+
+    .message em {
+      font-style: italic;
+    }
+
+    .human-message {
+      background-color: var(--accent-color);
+      margin-left: auto;
+    }
+
+    .tool-message {
+      background-color: #404040;
+      margin-right: auto;
+    }    
+
+    .ai-message {
+      background-color: #404040;
+      margin-right: auto;
+    }
+
+    .error-message {
+      background-color: var(--error-color);
+      color: white;
+      margin-right: auto;
+      border-left: 4px solid #d32f2f;
+    }
+
+    .pong-message {
+      text-align: center;
+      font-size: 24px;
+      color: #e91e63;
+      margin: 10px 0;
+    }
+
+    .input-container {
+      display: flex;
+      gap: 10px;
+      padding: 10px 0;
+    }
+
+    #message-input {
+      flex-grow: 1;
+      padding: 12px;
+      border: 1px solid #404040;
+      border-radius: 4px;
+      background-color: var(--bg-secondary);
+      color: var(--text-primary);
+    }
+
+    button {
+      padding: 12px 24px;
+      background-color: var(--accent-color);
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+
+    button:hover {
+      background-color: #1976d2;
+    }
+
+    @media (max-width: 768px) {
+      .threads-sidebar {
+        position: fixed;
+        height: 100vh;
+        z-index: 1000;
+        transform: translateX(0);
+        transition: transform 0.3s ease;
+      }
+
+      .threads-sidebar.collapsed {
+        transform: translateX(-100%);
+        width: var(--sidebar-width);
+      }
+
+      .chat-container {
+        margin-left: 0;
+      }
+
+      .message {
+        max-width: 90%;
+      }
+    }
+
+    .message h1, .message h2, .message h3, .message h4, .message h5, .message h6 {
+      margin: 12px 0 8px 0;
+      color: var(--text-primary);
+    }
+
+    .message h1 {
+      font-size: 1.5em;
+      border-bottom: 1px solid #404040;
+      padding-bottom: 4px;
+    }
+
+    .message h2 {
+      font-size: 1.3em;
+    }
+
+    .message h3 {
+      font-size: 1.2em;
+    }
+
+    .message h4 {
+      font-size: 1.1em;
+    }
+
+    .message h5 {
+      font-size: 1.05em;
+    }
+
+    .message h6 {
+      font-size: 1em;
+      color: var(--text-secondary);
+    }
+
+    /* Clean loading indicator - just animated text */
+    .loading-indicator {
+      display: none;
+      align-items: center;
+      padding: 16px 20px;
+      color: var(--text-secondary);
+      font-size: 14px;
+      margin-bottom: 10px;
+      background: rgba(255, 255, 255, 0.02);
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .loading-indicator.visible {
+      display: flex;
+    }
+
+    .loading-text {
+      font-style: italic;
+    }
+
+    .loading-dots::after {
+      content: '';
+      animation: dots 1.5s steps(4, end) infinite;
+    }
+
+    @keyframes dots {
+      0%, 20% { content: ''; }
+      40% { content: '.'; }
+      60% { content: '..'; }
+      80%, 100% { content: '...'; }
+    }
+
+    /* Suggested Prompts Styling - Always visible above input */
+    .suggested-prompts {
+      margin-bottom: 16px;
+      padding: 0 4px;
+    }
+
+    .prompts-label {
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+      font-weight: 500;
+      letter-spacing: 0.3px;
+    }
+
+    .prompts-container {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .prompts-row {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding: 2px;
+      scrollbar-width: none; /* Firefox */
+      -ms-overflow-style: none; /* IE and Edge */
+    }
+
+    .prompts-row::-webkit-scrollbar {
+      display: none; /* Chrome, Safari, Opera */
+    }
+
+    .prompt-button {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 6px;
+      padding: 8px 12px;
+      color: var(--text-secondary);
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-family: inherit;
+      white-space: nowrap;
+      flex-shrink: 0;
+      min-width: fit-content;
+    }
+
+    .prompt-button:hover {
+      background: rgba(33, 150, 243, 0.08);
+      border-color: rgba(33, 150, 243, 0.2);
+      color: var(--text-primary);
+      transform: translateY(-1px);
+    }
+
+    .prompt-button:active {
+      transform: translateY(0);
+    }
+
+    @media (max-width: 768px) {
+      .prompts-grid {
+        grid-template-columns: 1fr;
+      }
+      
+      .prompt-button {
+        font-size: 13px;
+        padding: 10px 14px;
+      }
+    }
+  </style>
+
+  <% if defined?(javascript_importmap_tags) %> <!-- Rails 7+ -->
+    <%= javascript_importmap_tags %>
+  <% else %> <!-- Rails 6 -->
+    <%= javascript_include_tag "application" %>
+  <% end %>
+  
+  <%= javascript_include_tag "llama_bot_rails/application" %>
+  <% if defined?(action_cable_meta_tag) %>
+    <%= action_cable_meta_tag %>
+  <% end %>
+  <!-- Add Snarkdown CDN -->
+  <script src="https://unpkg.com/snarkdown/dist/snarkdown.umd.js"></script>
+</head>
+<body>
+  <div class="app-container">
+    <div class="threads-sidebar" id="threads-sidebar">
+      <h2>Conversations</h2>
+      <div id="threads-list">
+        <!-- Threads will be added here dynamically -->
+      </div>
+    </div>
+
+    <div class="chat-container">
+      <div class="chat-header">
+        <div class="header-left">
+          <button class="toggle-sidebar" id="toggle-sidebar" title="Toggle sidebar">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M15 18l-6-6 6-6" />
+            </svg>
+          </button>
+          <div class="logo-container">
+            <img src="https://service-jobs-images.s3.us-east-2.amazonaws.com/7rl98t1weu387r43il97h6ipk1l7" alt="LlamaBot Logo" class="logo">
+            <div id="connectionStatusIconForLlamaBot" class="connection-status status-yellow"></div>
+          </div>
+          <h1>LlamaBot Chat</h1>
+        </div>
+        <button class="compose-button" onclick="startNewConversation()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 5v14M5 12h14"/>
+          </svg>
+          New Chat
+        </button>
+      </div>
+      <div class="chat-messages" id="chat-messages">
+        <!-- Messages will be added here dynamically -->
+      </div>
+      
+      <!-- Simple loading indicator with just animated text -->
+      <div class="loading-indicator" id="loading-indicator">
+        <span class="loading-text">LlamaBot is thinking<span class="loading-dots"></span></span>
+      </div>
+      
+      <!-- Suggested Prompts - Always visible above input -->
+      <div class="suggested-prompts" id="suggested-prompts">
+        <div class="prompts-label">Quick actions:</div>
+        <div class="prompts-container">
+          <div class="prompts-row">
+            <button class="prompt-button" onclick="selectPrompt(this)">What models are defined in this app?</button>
+            <button class="prompt-button" onclick="selectPrompt(this)">What routes exist?</button>
+            <button class="prompt-button" onclick="selectPrompt(this)">How many users are in the database?</button>
+            <button class="prompt-button" onclick="selectPrompt(this)">Show me the schema for the User model</button>
+          </div>
+          <div class="prompts-row">
+            <button class="prompt-button" onclick="selectPrompt(this)">Send a text with Twilio</button>
+            <button class="prompt-button" onclick="selectPrompt(this)">Create a BlogPost with title and body fields</button>
+            <button class="prompt-button" onclick="selectPrompt(this)">Generate a scaffolded Page model</button>
+          </div>
+        </div>
+      </div>
+      
+      <div class="input-container">
+        <input type="text" id="message-input" placeholder="Type your message...">
+        <button onclick="sendMessage()">Send</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modalOverlay"></div>
+  <div class="error-modal" id="errorModal">
+    <h2>Connection Error</h2>
+    <p>Lost connection to LlamaBot. Is it running? Refresh the page.</p>
+    <button onclick="closeErrorModal()">Close</button>
+  </div>
+
+  <script>
+    let currentThreadId = null;
+    let isSidebarCollapsed = false;
+    let lastPongTime = Date.now();
+    let redStatusStartTime = null;
+    let errorModalShown = false;
+    let connectionCheckInterval;
+    let subscription = null;
+
+    function waitForCableConnection(callback) {
+      const interval = setInterval(() => {
+        if (window.LlamaBotRails && LlamaBotRails.cable) {
+          clearInterval(interval);
+          callback(LlamaBotRails.cable);
+        }
+      }, 50);
+    }
+    
+    waitForCableConnection((consumer) => {
+      const sessionId = crypto.randomUUID();
+
+      subscription = consumer.subscriptions.create({channel: 'LlamaBotRails::ChatChannel', session_id: sessionId}, {
+        connected() {
+          console.log('Connected to chat channel');
+          lastPongTime = Date.now();
+          loadThreads();
+          startConnectionCheck();
+        },
+        disconnected() {
+          console.log('Disconnected from chat channel');
+          updateStatusIcon('status-red');
+        },
+        received(data) {
+          const parsedData = JSON.parse(data).message;
+          switch (parsedData.type) {
+            case "ai":
+              addMessage(parsedData.content, parsedData.type, parsedData.base_message);
+              break;
+            case "tool":
+              addMessage(parsedData.content, parsedData.type, parsedData.base_message);
+              break;
+            case "error":
+              addMessage(parsedData.content, parsedData.type, parsedData.base_message);
+              break;
+            case "pong":
+              lastPongTime = Date.now();
+              break;
+          }
+        }
+      });
+    });
+
+    function startConnectionCheck() {
+      if (connectionCheckInterval) {
+        clearInterval(connectionCheckInterval);
+      }
+      connectionCheckInterval = setInterval(updateConnectionStatus, 1000);
+    }
+
+    function updateConnectionStatus() {
+      const timeSinceLastPong = Date.now() - lastPongTime;
+      
+      if (timeSinceLastPong < 30000) { // Less than 30 seconds
+        updateStatusIcon('status-green');
+        redStatusStartTime = null;
+        errorModalShown = false;
+      } else if (timeSinceLastPong < 50000) { // Between 30-50 seconds
+        updateStatusIcon('status-yellow');
+        redStatusStartTime = null;
+        errorModalShown = false;
+      } else { // More than 50 seconds
+        updateStatusIcon('status-red');
+        if (!redStatusStartTime) {
+          redStatusStartTime = Date.now();
+        } else if (Date.now() - redStatusStartTime > 5000 && !errorModalShown) { // 5 seconds in red status
+          showErrorModal();
+        }
+      }
+    }
+
+    function updateStatusIcon(statusClass) {
+      const statusIndicator = document.getElementById('connectionStatusIconForLlamaBot');
+      statusIndicator.classList.remove('status-green', 'status-yellow', 'status-red');
+      statusIndicator.classList.add(statusClass);
+    }
+
+    function showErrorModal() {
+      const modal = document.getElementById('errorModal');
+      const overlay = document.getElementById('modalOverlay');
+      modal.classList.add('visible');
+      overlay.classList.add('visible');
+      errorModalShown = true;
+    }
+
+    function closeErrorModal() {
+      const modal = document.getElementById('errorModal');
+      const overlay = document.getElementById('modalOverlay');
+      modal.classList.remove('visible');
+      overlay.classList.remove('visible');
+    }
+
+    // Toggle sidebar
+    document.getElementById('toggle-sidebar').addEventListener('click', function() {
+      const sidebar = document.getElementById('threads-sidebar');
+      const toggleButton = this;
+      isSidebarCollapsed = !isSidebarCollapsed;
+      
+      sidebar.classList.toggle('collapsed');
+      toggleButton.classList.toggle('collapsed');
+    });
+
+    async function loadThreads() {
+      try {
+        const response = await fetch('/llama_bot/agent/threads');
+        const threads = await response.json();
+        console.log('Loaded threads:', threads);  // Debug log
+        
+        const threadsList = document.getElementById('threads-list');
+        threadsList.innerHTML = '';
+        
+        if (!threads || threads.length === 0) {
+          console.log('No threads available');
+          // Start with a blank conversation
+          startNewConversation();
+          return;
+        }
+        
+        
+        //sort conversation threads by creation date.
+        threads.sort((a, b) => { // checkpoint_id in LangGraph checkpoints are monotonically increasing, so we know their order based on checkpoint_id          
+          const checkpoint_id_a = a.state[2].configurable.checkpoint_id; //langgraph checkpoint object structure, derived from a breakpoint and inspecting object shape.
+          const checkpoint_id_b = b.state[2].configurable.checkpoint_id;
+          if (checkpoint_id_a === checkpoint_id_b) {
+            return a.thread_id.localeCompare(b.thread_id);
+          } else {
+            return checkpoint_id_b.localeCompare(checkpoint_id_a);
+          }
+        });
+        
+        threads.forEach(thread => {
+          const threadElement = createThreadElement(thread);
+          threadsList.appendChild(threadElement);
+        });
+
+        // Start with a blank conversation instead of loading the first thread
+        startNewConversation();
+      } catch (error) {
+        console.error('Error loading threads:', error);
+        // Start with a blank conversation on error
+        startNewConversation();
+      }
+    }
+
+    function createThreadElement(thread) {
+      const threadElement = document.createElement('div');
+      threadElement.className = 'thread-item';
+      const threadId = thread.thread_id || thread.id;
+      
+      // Parse timestamp from thread ID and format it nicely
+      let displayText;
+      if (threadId && threadId.match(/^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$/)) {
+        // Parse the timestamp format: YYYY-MM-DD_HH-MM-SS
+        const [datePart, timePart] = threadId.split('_');
+        const [year, month, day] = datePart.split('-');
+        const [hour, minute, second] = timePart.split('-');
+        
+        const date = new Date(year, month - 1, day, hour, minute, second);
+        displayText = date.toLocaleString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true
+        });
+      } else {
+        displayText = threadId || 'New Chat';
+      }
+      
+      threadElement.textContent = displayText;
+      threadElement.dataset.threadId = threadId;
+      threadElement.onclick = () => {
+        console.log('Clicked thread with ID:', threadId);  // Debug log
+        loadThread(threadId);
+      };
+      return threadElement;
+    }
+
+    async function loadThread(threadId) {
+      console.log('Loading thread:', threadId);  // Debug log
+      
+      if (!threadId) {
+        console.error('No thread ID provided');
+        return;
+      }
+      
+      currentThreadId = threadId;
+      const messagesDiv = document.getElementById('chat-messages');
+      messagesDiv.innerHTML = '';
+
+      try {
+        const response = await fetch(`/llama_bot/agent/chat-history/${threadId}`);
+        const threadState = await response.json();
+        console.log('Loaded thread state:', threadState);  // Debug log
+        
+        if (Array.isArray(threadState) && threadState.length > 0) {
+          // Get the messages array from the first state object
+          const messages = threadState[0].messages || [];
+          console.log('Processing messages:', messages);  // Debug log
+          messages.forEach(message => { //NOTE: this is where you can access 
+            if (message) {
+              addMessage(message.content, message.type, message);
+            }
+          });
+        }
+
+        // Update active thread in sidebar
+        document.querySelectorAll('.thread-item').forEach(item => {
+          item.classList.remove('active');
+          if (item.dataset.threadId === threadId) {
+            item.classList.add('active');
+          }
+        });
+      } catch (error) {
+        console.error('Error loading chat history:', error);
+        addMessage('Error loading chat history', 'error');
+      }
+    }
+
+    function startNewConversation() {
+      currentThreadId = null;
+      const messagesDiv = document.getElementById('chat-messages');
+      messagesDiv.innerHTML = '';
+      
+      // Show welcome message
+      showWelcomeMessage();
+    }
+
+    function showWelcomeMessage() {
+      const messagesDiv = document.getElementById('chat-messages');
+      const welcomeDiv = document.createElement('div');
+      welcomeDiv.className = 'welcome-message';
+      welcomeDiv.innerHTML = `
+        <h2>Welcome</h2>
+        <p>What's on the agenda?</p>
+      `;
+      messagesDiv.appendChild(welcomeDiv);
+    }
+
+    function showLoadingIndicator() {
+      const loadingIndicator = document.getElementById('loading-indicator');
+      loadingIndicator.classList.add('visible');
+    }
+
+    function hideLoadingIndicator() {
+      const loadingIndicator = document.getElementById('loading-indicator');
+      loadingIndicator.classList.remove('visible');
+    }
+
+    function selectPrompt(buttonElement) {
+      const promptText = buttonElement.textContent;
+      const messageInput = document.getElementById('message-input');
+      
+      // Populate the input field
+      messageInput.value = promptText;
+      
+      // Focus the input field for better UX
+      messageInput.focus();
+      
+      // Add a subtle animation to show the prompt was selected
+      buttonElement.style.transform = 'scale(0.98)';
+      setTimeout(() => {
+        buttonElement.style.transform = '';
+      }, 150);
+    }
+
+    function sendMessage() {
+      const input = document.getElementById('message-input');
+      const message = input.value.trim();
+      
+      if (message) {
+        // Check if subscription is available
+        if (!subscription) {
+          console.error('WebSocket connection not established yet');
+          addMessage('Connection not ready. Please wait...', 'error');
+          return;
+        }
+
+        // Clear welcome message if it exists
+        const welcomeMessage = document.querySelector('.welcome-message');
+        if (welcomeMessage) {
+          welcomeMessage.remove();
+        }
+        
+        addMessage(message, 'human');
+        input.value = '';
+
+        // Show loading indicator
+        showLoadingIndicator();
+
+        // Generate timestamp-based thread ID if we don't have one
+        let threadId = currentThreadId;
+        if (!threadId || threadId === 'global_thread_id') {
+          // Create timestamp in format: YYYY-MM-DD_HH-MM-SS
+          const now = new Date();
+          threadId = now.getFullYear() + '-' + 
+                    String(now.getMonth() + 1).padStart(2, '0') + '-' + 
+                    String(now.getDate()).padStart(2, '0') + '_' + 
+                    String(now.getHours()).padStart(2, '0') + '-' + 
+                    String(now.getMinutes()).padStart(2, '0') + '-' + 
+                    String(now.getSeconds()).padStart(2, '0');
+          currentThreadId = threadId;
+        }
+
+        const messageData = {
+          message: message,
+          thread_id: threadId
+        };
+        
+        console.log('Sending message with data:', messageData);  // Debug log
+        subscription.send(messageData);
+      }
+    }
+
+    /**
+    * @param {string} text - The text content of the message
+    * @param {string} sender - The sender of the message. This matches LangGraph schema -- either 'ai', 'tool', or 'human'. 'error' if an error occurs somewhere in the stack.
+    * @param {object} base_message - The base message object. This is the object that is sent from LangGraph, and is used to parse the message.
+    * @returns {void}
+    */
+    function addMessage(text, sender, base_message=null) {
+      console.log('🧠 Message from LlamaBot:', text, sender, base_message);
+
+      // Hide loading indicator when we receive an AI response
+      if (sender === 'ai') {
+        hideLoadingIndicator();
+      }
+
+      const messagesDiv = document.getElementById('chat-messages');
+      const messageDiv = document.createElement('div');
+      messageDiv.className = `message ${sender}-message`;
+      
+      // Parse markdown for bot messages using Snarkdown, keep plain text for user messages
+      if (sender === 'ai') { //Arghh. We're having issues with difference in formats between when we're streaming from updates mode, and when pulling state from checkpoint.
+        if (text == ''){ //this is most likely a tool call.
+          let tool_call = base_message.additional_kwargs['tool_calls'][0];
+
+          // The below works for loading message history from checkpoint (persistence), AND when receiving messages from LangGraph streaming "updates" mode. This is a LangGraph BaseMessage object.
+          let function_name = tool_call.function.name;
+          let function_arguments = JSON.parse(tool_call.function.arguments);
+          
+          if (function_name == 'run_rails_console_command') { //this is our standardized tool for running rails console commands. Matches the function name in llamabot/backend/agents/llamabot_v1/nodes.py:run_rails_console_command
+            let rails_console_command = function_arguments.rails_console_command;
+            let message_to_user = function_arguments.message_to_user;
+            let internal_thoughts = function_arguments.internal_thoughts;
+
+            messageDiv.innerHTML = `
+              <div class="tool-execution-block">
+                <!-- Main action message -->
+                <div class="tool-action-message">
+                  <div class="tool-action-header">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="tool-action-icon">
+                      <path d="M9 12l2 2 4-4"/>
+                      <circle cx="12" cy="12" r="10"/>
+                    </svg>
+                    <span class="tool-action-label">LlamaBot</span>
+                  </div>
+                  <div class="tool-action-content">${message_to_user}</div>
+                </div>
+
+                <!-- Internal reasoning -->
+                <div class="tool-reasoning">
+                  <div class="tool-reasoning-header">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="tool-reasoning-icon">
+                      <circle cx="12" cy="12" r="5"/>
+                      <path d="M12 1v6"/>
+                      <path d="M12 17v6"/>
+                      <path d="M4.22 4.22l4.24 4.24"/>
+                      <path d="M15.54 15.54l4.24 4.24"/>
+                      <path d="M1 12h6"/>
+                      <path d="M17 12h6"/>
+                      <path d="M4.22 19.78l4.24-4.24"/>
+                      <path d="M15.54 8.46l4.24-4.24"/>
+                    </svg>
+                    <span class="tool-reasoning-label">Reasoning</span>
+                  </div>
+                  <div class="tool-reasoning-content">${internal_thoughts}</div>
+                </div>
+
+                <!-- Command execution -->
+                <div class="tool-command-block">
+                  <div class="tool-command-content">
+                    <span class="command-prompt">$</span> <code>${rails_console_command.replace(/;/g, ';<br>')}</code>
+                  </div>
+                </div>
+              </div>
+
+              <style>
+                .tool-execution-block {
+                  background: rgba(255, 255, 255, 0.02);
+                  border: 1px solid rgba(255, 255, 255, 0.08);
+                  border-radius: 12px;
+                  padding: 0;
+                  overflow: hidden;
+                  margin: 4px 0;
+                }
+
+                .tool-action-message {
+                  background: linear-gradient(135deg, rgba(33, 150, 243, 0.1) 0%, rgba(33, 150, 243, 0.05) 100%);
+                  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+                  padding: 16px 20px;
+                }
+
+                .tool-action-header {
+                  display: flex;
+                  align-items: center;
+                  gap: 8px;
+                  margin-bottom: 8px;
+                }
+
+                .tool-action-icon {
+                  color: var(--accent-color);
+                  flex-shrink: 0;
+                }
+
+                .tool-action-label {
+                  font-size: 13px;
+                  font-weight: 600;
+                  color: var(--accent-color);
+                  text-transform: uppercase;
+                  letter-spacing: 0.5px;
+                }
+
+                .tool-action-content {
+                  color: var(--text-primary);
+                  font-size: 15px;
+                  line-height: 1.5;
+                  margin-left: 24px;
+                }
+
+                .tool-reasoning {
+                  background: rgba(255, 255, 255, 0.02);
+                  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+                  padding: 14px 20px;
+                }
+
+                .tool-reasoning-header {
+                  display: flex;
+                  align-items: center;
+                  gap: 8px;
+                  margin-bottom: 6px;
+                }
+
+                .tool-reasoning-icon {
+                  color: var(--text-secondary);
+                  flex-shrink: 0;
+                }
+
+                .tool-reasoning-label {
+                  font-size: 12px;
+                  font-weight: 500;
+                  color: var(--text-secondary);
+                  text-transform: uppercase;
+                  letter-spacing: 0.5px;
+                }
+
+                .tool-reasoning-content {
+                  color: var(--text-secondary);
+                  font-size: 14px;
+                  line-height: 1.4;
+                  font-style: italic;
+                  margin-left: 22px;
+                  opacity: 0.8;
+                }
+
+                .tool-command-block {
+                  background: rgba(255, 255, 255, 0.02);
+                  padding: 16px 20px;
+                }
+
+                .tool-command-content {
+                  background: rgba(0, 0, 0, 0.4);
+                  border: 1px solid rgba(255, 255, 255, 0.1);
+                  border-radius: 8px;
+                  padding: 14px 18px;
+                  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Source Code Pro', monospace;
+                  font-size: 13px;
+                  line-height: 1.6;
+                  color: #e5e7eb;
+                  overflow-x: auto;
+                  display: flex;
+                  align-items: flex-start;
+                }
+
+                .command-prompt {
+                  color: #10b981;
+                  font-weight: 600;
+                  margin-right: 8px;
+                  flex-shrink: 0;
+                }
+
+                .tool-command-content code {
+                  background: none;
+                  padding: 0;
+                  color: inherit;
+                  font-size: inherit;
+                  font-family: inherit;
+                  flex: 1;
+                }
+
+                .tool-execution-block:hover {
+                  border-color: rgba(255, 255, 255, 0.12);
+                }
+
+                .tool-execution-block:hover .tool-action-message {
+                  background: linear-gradient(135deg, rgba(33, 150, 243, 0.12) 0%, rgba(33, 150, 243, 0.06) 100%);
+                }
+              </style>
+            `;
+          }
+          else {
+            messageDiv.innerHTML = `🔨 - ${function_name}`;
+            messageDiv.innerHTML += `<pre>${JSON.stringify(function_arguments, null, 2)}</pre>`;
+          }
+
+        }
+        else {
+          messageDiv.innerHTML = snarkdown(text); 
+        }
+      } else if (sender === 'tool') { //tool messages are not parsed as markdown
+        if (base_message.name == 'run_rails_console_command') {
+          command_result = JSON.parse(base_message.content)['result'];
+          messageDiv.innerHTML = `🖥️ - ${command_result}`;
+        }
+        else {
+          messageDiv.textContent = `🔨 - ${text}`;
+        }
+      } else {
+        messageDiv.textContent = text;
+      }
+      messagesDiv.appendChild(messageDiv);
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+
+    document.getElementById('message-input').addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') {
+        sendMessage();
+      }
+    });
+  </script>
+</body>
+</html> 

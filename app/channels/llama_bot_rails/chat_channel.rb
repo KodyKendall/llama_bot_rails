@@ -4,6 +4,34 @@ require 'async/websocket'
 
 require 'json'  # Ensure JSON is required if not already
 
+# Why support both a websocket connection, (chat_channel.rb), and a non-websocket SSE connection? %>
+# Rails 6 wasn’t working with our ActionCable websocket connection, so I wanted to implement SSE as well.
+
+# We want to support a generic HTML interface that isn’t dependent on rails. (In case the Rails server goes down for whatever reason, we don’t lose access to LlamaBot).
+# Why have chat_channel.rb at all?
+
+# Because Ruby on Rails lacks good tooling to handle real-time interaction, that isn’t through ActionCable. 
+# For “cancel” requests. Websocket is a 2 way connection, so we can send a ‘cancel’ in. 
+# To support legacy LlamaPress stuff. 
+# We chose to implement it with ActionCable plus Async Websockets.
+# But, it’s Ruby on Rails specific, and is best for UI/UX experiences.
+
+# SSE is better for other clients that aren’t Ruby on Rails specific, and if you want to handle just a simple SSE approach.
+# This does add some complexity though.
+
+# We now have 2 different paradigms of front-end JavaScript consuming from LlamaBot
+# ActionCable consumption
+# StreamedResponse consumption.
+
+# We also have 2 new middleware layers:
+# ActionCable <-> chat_channel.rb <-> /ws <-> request_handler.py
+# HTTPS <-> agent_controller.rb <-> LlamaBot.rb <-> FastAPI HTTPS
+
+# So this increases our overall surface area for the application.
+
+# This is deprecated and will be removed over time, to move towards a simple SSE approach.
+
+
 module LlamaBotRails
   class ChatChannel < ApplicationCable::Channel
     # _chat.html.erb front-end subscribes to this channel in _websocket.html.erb.
