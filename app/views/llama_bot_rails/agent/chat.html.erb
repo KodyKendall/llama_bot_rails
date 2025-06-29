@@ -787,7 +787,24 @@
       }
     }
 
+    //    console.log('🤖 Testing streaming');
+    //debugger;
+    //testStreaming();
 
+    async function testStreaming() {
+      debugger;
+      const response = await fetch('/llama_bot/agent/test_streaming');
+      const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      while(true){
+        const { done, value } = await reader.read();
+        console.log('🤖 SSE message:', value);
+        if (done) {
+          break;
+        }
+      }
+    }
 
     function selectPrompt(buttonElement) {
       const promptText = buttonElement.textContent;
@@ -865,11 +882,33 @@
           const reader = response.body.getReader();
           const decoder = new TextDecoder();
           let buffer = '';
+
+          // const response_2 = await fetch('/llama_bot/agent/send_message', {
+          //   method: 'POST',
+          //   headers: {
+          //     'Content-Type': 'text/event-stream'
+          //   },
+          //   body: JSON.stringify({
+          //     "message": message,
+          //     "thread_id": threadId
+          //   })
+          // });
+
+          // const reader_2 = response_2.body.pipeThrough(new TextDecoderStream()).getReader();
+
+          // while (true) {
+          //   const { done, value } = await reader_2.read();
+          //   if (done) {
+          //     break;
+          //   }
+          //   // Process each SSE message (value)
+          //   console.log('🤖 SSE message:', value);
+          // }
           
           try {
-            // Process the stream
             while (true) {
               const { done, value } = await reader.read();
+              console.log('Got a value from the stream 🧠 Stream value:', value);
               
               if (done) {
                 console.log('Stream completed');
@@ -880,70 +919,52 @@
               // Decode the chunk and add to buffer
               buffer += decoder.decode(value, { stream: true });
               
-              // Process complete lines in the buffer
-              const lines = buffer.split('\n');
-              buffer = lines.pop() || ''; // Keep the last incomplete line in the buffer
-              
-              for (const line of lines) {
-                if (line.trim() === '') continue;
+              // Process complete SSE events (separated by \n\n)
+              while (buffer.includes('\n\n')) {
+                const eventEnd = buffer.indexOf('\n\n');
+                const eventBlock = buffer.slice(0, eventEnd);
+                buffer = buffer.slice(eventEnd + 2);
                 
-                try {
-                  const chunk = JSON.parse(line);
-                  console.log('Processing chunk:', chunk);
+                // Parse SSE event
+                const dataLines = eventBlock.split('\n').filter(line => line.startsWith('data:'));
+                if (dataLines.length > 0) {
+                  const jsonData = dataLines.map(line => line.substring(5).trim()).join('');
                   
-                                    // Handle specific chunk types from Python backend
-                  if (chunk.type === 'start') {
-                    console.log('Stream started:', chunk.request_id || 'unknown');
-                    // Loading indicator already showing
-                  } else if (chunk.type === 'final') {
-                    console.log('Stream completed');
-                    hideLoadingIndicator();
-                    clearStreamingTimeout();
-                  } else if (chunk.type === 'error') {
-                    console.error('Server error:', chunk);
-                    hideLoadingIndicator();
-                    clearStreamingTimeout();
-                    addMessage(`Error: ${chunk.content || 'Unknown error occurred'}`, 'error');
-                  } else if (chunk.type === 'ai') {
-                    // AI message from LangGraph
-                    addMessage(chunk.content, 'ai', chunk);
-                    hideLoadingIndicator();
-                    clearStreamingTimeout();
-                  } else if (chunk.type === 'tool') {
-                    // Tool message from LangGraph
-                    addMessage(chunk.content, 'tool', chunk);
-                  } else {
-                    // Handle any other message types (human, etc.)
-                    if (chunk.content) {
-                      addMessage(chunk.content, chunk.type || 'unknown', chunk);
+                  try {
+                    const chunk = JSON.parse(jsonData);
+                    console.log('Processing chunk:', chunk);
+                    
+                    // Your existing chunk processing logic here...
+                    if (chunk.type === 'start') {
+                      console.log('Stream started:', chunk.request_id || 'unknown');
+                    } else if (chunk.type === 'final') {
+                      console.log('Stream completed');
+                      hideLoadingIndicator();
+                      clearStreamingTimeout();
+                    } else if (chunk.type === 'error') {
+                      console.error('Server error:', chunk);
+                      hideLoadingIndicator();
+                      clearStreamingTimeout();
+                      addMessage(`Error: ${chunk.content || 'Unknown error occurred'}`, 'error');
+                    } else if (chunk.type === 'ai') {
+                      addMessage(chunk.content, 'ai', chunk);
+                      hideLoadingIndicator();
+                      clearStreamingTimeout();
+                    } else if (chunk.type === 'tool') {
+                      addMessage(chunk.content, 'tool', chunk);
+                    } else {
+                      if (chunk.content) {
+                        addMessage(chunk.content, chunk.type || 'unknown', chunk);
+                      }
+                      console.log('Other chunk type:', chunk.type, chunk);
                     }
-                    console.log('Other chunk type:', chunk.type, chunk);
+                    
+                  } catch (parseError) {
+                    console.error('Error parsing SSE data:', parseError, 'Data:', jsonData);
                   }
-                  
-                } catch (parseError) {
-                  console.error('Error parsing stream data:', parseError, 'Line:', line);
                 }
               }
             }
-            
-            // Process any remaining data in buffer using same line-splitting logic
-            if (buffer.trim()) {
-              console.log('Processing final buffer:', buffer.length, 'characters');
-              const finalLines = buffer.split('\n');
-              
-              for (const line of finalLines) {
-                if (line.trim() === '') continue;
-                
-                try {
-                  const chunk = JSON.parse(line);
-                  console.log('Parsed final buffer chunk:', chunk);
-                  processChunk(chunk);
-                } catch (parseError) {
-                  console.error('Error parsing final buffer line:', parseError, 'Line:', line);
-                }
-              }
-            }
-            
           } finally {
             reader.releaseLock();
           }

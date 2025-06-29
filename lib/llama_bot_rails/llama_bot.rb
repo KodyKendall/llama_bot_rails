@@ -39,7 +39,6 @@ module LlamaBotRails
           buffer = ''
           
           response.read_body do |chunk|
-            Rails.logger.info "[[LlamaBot]] Received chunk in LlamaBot.rb: #{chunk}"
             buffer += chunk
             
             # Process complete lines (ended with \n)
@@ -47,7 +46,6 @@ module LlamaBotRails
               line, buffer = buffer.split("\n", 2)
               if line.strip.present?
                 begin
-                  Rails.logger.info "[[LlamaBot]] Sending AI chunk in LlamaBot.rb: #{line}"
                   yield JSON.parse(line)
                 rescue JSON::ParserError => e
                   Rails.logger.error "Parse error: #{e.message}"

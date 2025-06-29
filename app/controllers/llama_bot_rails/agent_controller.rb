@@ -86,16 +86,41 @@ module LlamaBotRails
     
             # 2. Construct the LangGraph-ready state
             state_payload = builder.build
+            # sse = SSE.new(response.stream)
+
             begin
                 LlamaBotRails::LlamaBot.send_agent_message(state_payload) do |chunk|
+                    Rails.logger.info "[[LlamaBot]] Received chunk in agent_controller.rb: #{chunk}"
+                    # sse.write(chunk)
                     response.stream.write "data: #{chunk.to_json}\n\n"
+
                 end
             rescue => e
                 Rails.logger.error "Error in send_message action: #{e.message}"
                 response.stream.write "data: #{ { type: 'error', content: e.message }.to_json }\n\n"
+
+                # sse.write({ type: 'error', content: e.message })
             ensure
                 response.stream.close
+
+                # sse.close
             end
+        end
+
+        def test_streaming
+            response.headers['Content-Type']  = 'text/event-stream'
+            response.headers['Cache-Control'] = 'no-cache'
+            response.headers['Connection']    = 'keep-alive'
+            sse = SSE.new(response.stream)
+            sse.write({ type: 'start', content: 'Starting streaming' })
+            sleep 1
+            sse.write({ type: 'ai', content: 'This is an AI message' })
+            sleep 1
+            sse.write({ type: 'ai', content: 'This is an AI message' })
+            sleep 1
+            sse.write({ type: 'ai', content: 'This is an AI message' })
+            sleep 1
+            sse.write({ type: 'ai', content: 'This is an AI message' })
         end
 
         private 

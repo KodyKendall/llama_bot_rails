@@ -4,4 +4,5 @@ LlamaBotRails::Engine.routes.draw do
   get "agent/threads", to: "agent#threads"
   get "agent/chat-history/:thread_id", to: "agent#chat_history"
   post "agent/send_message", to: "agent#send_message"
+  get "agent/test_streaming", to: "agent#test_streaming"
 end
