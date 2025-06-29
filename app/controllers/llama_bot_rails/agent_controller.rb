@@ -69,10 +69,9 @@ module LlamaBotRails
 
         # POST /agent/send-message
         def send_message
-            response.headers['Content-Type'] = 'text/plain; charset=utf-8'
+            response.headers['Content-Type']  = 'text/event-stream'
             response.headers['Cache-Control'] = 'no-cache'
-            response.headers['Connection'] = 'keep-alive'
-            response.headers['X-Accel-Buffering'] = 'no'  # Disable Nginx buffering
+            response.headers['Connection']    = 'keep-alive'
 
             @api_token = Rails.application.message_verifier(:llamabot_ws).generate(
                 { session_id: SecureRandom.uuid },
@@ -87,20 +86,13 @@ module LlamaBotRails
     
             # 2. Construct the LangGraph-ready state
             state_payload = builder.build
-
-            #The user is responsible for creating a custom AgentStateBuilder if they want to use a custom agent. Otherwise, we default to LlamaBotRails::AgentStateBuilder.
-            
-            # Send immediate start confirmation
-            start_chunk = { type: 'start', content: 'Stream started', timestamp: Time.current.iso8601 }
-            response.stream.write(start_chunk.to_json + "\n")
-            
             begin
                 LlamaBotRails::LlamaBot.send_agent_message(state_payload) do |chunk|
-                    Rails.logger.info "[[LlamaBot]] Received AI chunk in agent_controller.rb: #{chunk}"
-                    response.stream.write(chunk.to_json + "\n")
+                    response.stream.write "data: #{chunk.to_json}\n\n"
                 end
-            rescue => exception
-                Rails.logger.error "Error in send_message action: #{exception.message}"
+            rescue => e
+                Rails.logger.error "Error in send_message action: #{e.message}"
+                response.stream.write "data: #{ { type: 'error', content: e.message }.to_json }\n\n"
             ensure
                 response.stream.close
             end
@@ -125,6 +117,7 @@ module LlamaBotRails
         end
 
         def state_builder_class
+            #The user is responsible for creating a custom AgentStateBuilder if they want to use a custom agent. Otherwise, we default to LlamaBotRails::AgentStateBuilder.
             LlamaBotRails.config.state_builder_class.constantize
         end
     end

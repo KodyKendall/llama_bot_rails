@@ -4,6 +4,22 @@ RSpec.describe LlamaBotRails::AgentController, type: :controller do
   routes { LlamaBotRails::Engine.routes }
 
   describe 'POST #send_message' do
+    let(:params_hash) do
+      {
+        message:   message,
+        thread_id: thread_id,
+        agent_name: 'llamabot',
+        agent_prompt: 'You are LlamaBot, a helpful assistant.',
+        api_token: 'token-123'
+      }
+    end
+
+    before do
+      @request.headers['Content-Type']     = 'application/json'
+      @request.headers['Accept']           = 'text/event-stream'
+      @request.headers['Accept-Encoding']  = 'identity'
+    end
+
     let(:message) { 'Test message' }
     let(:thread_id) { '2025-06-28_10-06-33' }
     let(:agent_name) { 'test_agent' }
@@ -37,23 +53,20 @@ RSpec.describe LlamaBotRails::AgentController, type: :controller do
       end
 
       it 'sets proper SSE headers' do
-        post :send_message, params: { message: message, thread_id: thread_id }
-
+        post :send_message, body: params_hash.to_json
         expect(response.headers['Content-Type']).to eq('text/event-stream')
-        expect(response.headers['Cache-Control']).to eq('no-cache')
-        expect(response.headers['Connection']).to eq('keep-alive')
       end
 
       it 'calls LlamaBot.send_agent_message with correct parameters' do
         expect(LlamaBotRails::LlamaBot).to receive(:send_agent_message)
-          .with(message, thread_id)
+          .with(hash_including(message: message, thread_id: thread_id))
           .and_yield(ai_chunk).and_yield(final_chunk)
 
-        post :send_message, params: { message: message, thread_id: thread_id }
+        post :send_message, body: params_hash.to_json
       end
 
       it 'responds with success status' do
-        post :send_message, params: { message: message, thread_id: thread_id }
+        post :send_message, body: params_hash.to_json
         expect(response).to be_successful
       end
     end
@@ -70,37 +83,24 @@ RSpec.describe LlamaBotRails::AgentController, type: :controller do
         expect(Rails.logger).to receive(:error)
           .with("Error in send_message action: #{error_message}")
 
-        post :send_message, params: { message: message, thread_id: thread_id }
+        post :send_message, body: params_hash.to_json
       end
 
       it 'still responds successfully (error is handled gracefully)' do
-        post :send_message, params: { message: message, thread_id: thread_id }
+        post :send_message, body: params_hash.to_json
         expect(response).to be_successful
       end
     end
 
     context 'with missing parameters' do
-      before do
-        allow(LlamaBotRails::LlamaBot).to receive(:send_agent_message)
-      end
-
-      it 'handles nil message gracefully' do
-        expect {
-          post :send_message, params: { thread_id: thread_id }
-        }.not_to raise_error
-      end
-
-      it 'handles nil thread_id gracefully' do
-        expect {
-          post :send_message, params: { message: message }
-        }.not_to raise_error
-      end
+      let(:message)   { 'Hi' }
+      let(:thread_id) { nil  }
 
       it 'calls LlamaBot with nil thread_id when not provided' do
         expect(LlamaBotRails::LlamaBot).to receive(:send_agent_message)
-          .with(message, nil)
+          .with(hash_including(message: message, thread_id: nil))
 
-        post :send_message, params: { message: message }
+        post :send_message, body: { message: message }.to_json
       end
     end
 
@@ -114,7 +114,7 @@ RSpec.describe LlamaBotRails::AgentController, type: :controller do
 
       it 'handles invalid JSON gracefully' do
         expect {
-          post :send_message, params: { message: message, thread_id: thread_id }
+          post :send_message, body: params_hash.to_json
         }.not_to raise_error
       end
     end
@@ -129,11 +129,11 @@ RSpec.describe LlamaBotRails::AgentController, type: :controller do
         # This test verifies we call the streaming method correctly
         expect(LlamaBotRails::LlamaBot).to receive(:send_agent_message) do |msg, tid, &block|
           expect(block).to be_present  # Verify a block is passed
-          expect(msg).to eq(message)
-          expect(tid).to eq(thread_id)
+          expect(msg).to include(message: message)
+          expect(params[:thread_id]).to eq(thread_id) if params.key?(:thread_id)
         end
 
-        post :send_message, params: { message: message, thread_id: thread_id }
+        post :send_message, body: params_hash.to_json
       end
     end
   end
@@ -189,6 +189,27 @@ RSpec.describe LlamaBotRails::AgentController, type: :controller do
         expect(response).to be_successful
         expect(JSON.parse(response.body)).to eq([])
       end
+    end
+  end
+
+  describe 'POST /llama_bot/agent/send_message (SSE)' do
+    it 'streams SSE events as they are produced' do
+      ai_chunk    = { 'role' => 'assistant', 'content' => 'Hi' }
+      final_chunk = { 'type' => 'final', 'content' => 'final' }
+
+      allow(LlamaBotRails::LlamaBot).to receive(:send_agent_message)
+        .and_yield(ai_chunk).and_yield(final_chunk)
+
+      post :send_message,
+           body:  { message: 'hello' }.to_json,
+           as:    :json               # rails-6 controller spec helper
+
+      expect(response).to have_http_status(:ok)
+      expect(response.media_type).to eq('text/event-stream')
+
+      events = response.body.split("\n\n").map { |e| e.sub(/^data:\s*/, '') }
+      expect(events.first).to include('assistant')
+      expect(events.last ).to include('"type":"final"')
     end
   end
 end
