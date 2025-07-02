@@ -788,16 +788,23 @@
     }
 
     //    console.log('🤖 Testing streaming');
-    //debugger;
-    //testStreaming();
-
+    // testStreaming();
+    
     async function testStreaming() {
-      const response = await fetch('/llama_bot/agent/test_streaming');
+      const response = await fetch('/llama_bot/agent/test_streaming_2');
       const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
       const decoder = new TextDecoder();
       let buffer = '';
-      while(true){
-        const { done, value } = await reader.read();
+      debugger;
+      let infinite_loop_protector = 0;
+      let in_infinite_loop = false;
+      while(!in_infinite_loop){ //infinite_loop_protector to protect against infinite loop
+        infinite_loop_protector++;
+        if (infinite_loop_protector > 10000) { //we shouldn't have 10000 loops, but just in case.
+          in_infinite_loop = true;
+          console.error('∞ ∞ ∞ Infinite loop prevented! ∞ ∞ ∞');
+        }
+        const { done, value } = reader.read();
         console.log('🤖 SSE message:', value);
         if (done) {
           break;
@@ -882,15 +889,15 @@
           const decoder = new TextDecoder();
           let buffer = '';
 
-          // const response_2 = await fetch('/llama_bot/agent/send_message', {
-          //   method: 'POST',
+          // const response_2 = await fetch('/llama_bot/agent/test_streaming', {
+          //   method: 'GET',
           //   headers: {
           //     'Content-Type': 'text/event-stream'
           //   },
-          //   body: JSON.stringify({
-          //     "message": message,
-          //     "thread_id": threadId
-          //   })
+          //   // body: JSON.stringify({
+          //   //   "message": message,
+          //   //   "thread_id": threadId
+          //   // })
           // });
 
           // const reader_2 = response_2.body.pipeThrough(new TextDecoderStream()).getReader();
