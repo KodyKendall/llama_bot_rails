@@ -2,6 +2,14 @@ require 'rails_helper'
 require 'llama_bot_rails/llama_bot'
 
 RSpec.describe LlamaBotRails::LlamaBot do
+
+  describe '.send_agent_message' do
+    it 'sends an agent message' do
+      result = described_class.send_agent_message(message: 'Hello', thread_id: '123')
+      expect(result).to be_a(Enumerator)
+    end
+  end
+
   describe '.get_threads' do
     context 'when the request is successful' do
       before do
