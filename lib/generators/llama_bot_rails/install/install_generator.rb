@@ -4,6 +4,16 @@ module LlamaBotRails
       class InstallGenerator < Rails::Generators::Base
         source_root File.expand_path("templates", __dir__)
 
+        def allow_docker_host
+          dev_config = "config/environments/development.rb"
+          insertion = "  config.hosts << /host\\.docker\\.internal/  # Allow Docker agent to access Rails\n"
+  
+          unless File.read(dev_config).include?("host.docker.internal")
+            inject_into_file dev_config, insertion, after: "Rails.application.configure do\n"
+            say_status("updated", "Added host.docker.internal to development.rb", :green)
+          end
+        end
+
         def create_config_file
             empty_directory "config/llama_bot"
             copy_file "agent_prompt.txt", "config/llama_bot/agent_prompt.txt"

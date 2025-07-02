@@ -1,5 +1,6 @@
 require "llama_bot_rails/version"
 require "llama_bot_rails/engine"
+require "llama_bot_rails/llama_bot"
 
 module LlamaBotRails
   class << self
@@ -22,6 +23,10 @@ module LlamaBotRails
     def add_instruction_to_agent_prompt!(new_instruction)
       FileUtils.mkdir_p(agent_prompt_path.dirname)
       File.write(agent_prompt_path, "\n#{new_instruction}", mode: 'a')
+    end
+
+    def send_agent_message(agent_params)
+      LlamaBot.send_agent_message(agent_params)
     end
   end
 end

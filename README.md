@@ -36,26 +36,11 @@ bundle add llama_bot_rails
 # 2. Install the routes & chat interface
 rails generate llama_bot_rails:install
 
-# 3. Clone & run the LangGraph backend
-git clone https://github.com/kodykendall/llamabot
-
-cd llamabot
-
-# 4. Set up your environment
-python3 -m venv venv
-
-source venv/bin/activate
-
-pip install -r requirements.txt
-
-echo "OPENAI_API_KEY=your_openai_api_key_here" > .env
-
-# 5. Run the agent
-cd backend
-uvicorn app:app --reload
-
-# 6. Confirm our agent is running properly. You should see: Hello, World! 🦙💬
-curl http://localhost:8000/hello
+# 3.Run the LlamaBot backend easily with Docker
+docker run \
+  -e OPENAI_API_KEY=(your-key) \
+  -p 8000:8000 \
+  kody06/llamabot-backend
 
 # 7. Start your Rails server.
 rails server
@@ -80,6 +65,20 @@ open http://localhost:3000/llama_bot/agent/chat
 - OpenAI API key
 
 ---
+
+## ⚙️ Rails Integration Note (for LlamaBot Rails Gem)
+
+If you're using the llama_bot_rails Gem with Docker, your Rails app must allow the Docker agent to connect back to it.
+
+Add this to your config/environments/development.rb (if it wasn’t added automatically by the Gem installer):
+
+```ruby
+Rails.application.configure do
+  config.hosts << /host\.docker\.internal/  # Allow Docker agent to connect to Rails
+end
+```
+
+This allows the Docker container to reach http://host.docker.internal:3000, which maps to your Rails app on the host machine.
 
 ## 🧨 **Power & Responsibility**
 

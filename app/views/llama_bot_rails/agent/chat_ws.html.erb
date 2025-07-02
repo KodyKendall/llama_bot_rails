@@ -1,3 +1,34 @@
+<%# Why support both a websocket connection, (chat_channel.rb), and a non-websocket SSE connection?
+
+Rails 6 wasn’t working with our ActionCable websocket connection, so I wanted to implement SSE as well.
+
+We want to support a generic HTML interface that isn’t dependent on rails. (In case the Rails server goes down for whatever reason, we don’t lose access to LlamaBot).
+
+Why have chat_channel.rb at all?
+
+Because Ruby on Rails lacks good tooling to handle real-time interaction, that isn’t through ActionCable. 
+For “cancel” requests. Websocket is a 2 way connection, so we can send a ‘cancel’ in. 
+To support legacy LlamaPress stuff. 
+We chose to implement it with ActionCable plus Async Websockets.
+But, it’s Ruby on Rails specific, and is best for UI/UX experiences.
+
+SSE is better for other clients that aren’t Ruby on Rails specific, and if you want to handle just a simple SSE approach.
+
+This does add some complexity though.
+
+You now have 2 different paradigms of front-end JavaScript consuming from LlamaBot
+ActionCable consumption
+StreamedResponse consumption.
+
+You also have 2 new middleware layers:
+ActionCable <-> chat_channel.rb <-> /ws <-> request_handler.py
+HTTPS <-> agent_controller.rb <-> LlamaBot.rb <-> FastAPI HTTPS
+
+So this increases our overall surface area for the application. 
+
+This deprecated and will be removed over time.
+%>
+
 <!DOCTYPE html>
 <html>
 <head>
@@ -145,7 +176,30 @@
       display: block;
     }
 
+    .connection-status {
+      position: absolute;
+      bottom: -2px;
+      right: -2px;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      border: 2px solid var(--bg-primary);
+      transition: background-color 0.3s ease;
+      z-index: 10;
+      pointer-events: none;
+    }
 
+    .status-green {
+      background-color: #22c55e !important;
+    } 
+
+    .status-yellow {
+      background-color: #eab308 !important;
+    }
+
+    .status-red {
+      background-color: #ef4444 !important;
+    }
 
     .error-modal {
       display: none;
@@ -383,7 +437,7 @@
       color: var(--text-secondary);
     }
 
-    /* Enhanced loading indicator with status updates */
+    /* Clean loading indicator - just animated text */
     .loading-indicator {
       display: none;
       align-items: center;
@@ -394,8 +448,6 @@
       background: rgba(255, 255, 255, 0.02);
       border-radius: 8px;
       border: 1px solid rgba(255, 255, 255, 0.08);
-      transition: all 0.3s ease;
-      min-height: 50px; /* Prevent layout shift during status updates */
     }
 
     .loading-indicator.visible {
@@ -404,15 +456,11 @@
 
     .loading-text {
       font-style: italic;
-      flex: 1;
-      transition: color 0.3s ease;
-      line-height: 1.4;
     }
 
     .loading-dots::after {
       content: '';
       animation: dots 1.5s steps(4, end) infinite;
-      opacity: 0.7;
     }
 
     @keyframes dots {
@@ -420,22 +468,6 @@
       40% { content: '.'; }
       60% { content: '..'; }
       80%, 100% { content: '...'; }
-    }
-
-    /* Status-specific styling */
-    .loading-indicator:has(.loading-text:contains("Error")) {
-      border-color: rgba(244, 67, 54, 0.3);
-      background: rgba(244, 67, 54, 0.05);
-    }
-
-    .loading-indicator:has(.loading-text:contains("Complete")) {
-      border-color: rgba(76, 175, 80, 0.3);
-      background: rgba(76, 175, 80, 0.05);
-    }
-
-    .loading-indicator:has(.loading-text:contains("Connected")) {
-      border-color: rgba(33, 150, 243, 0.3);
-      background: rgba(33, 150, 243, 0.05);
     }
 
     /* Suggested Prompts Styling - Always visible above input */
@@ -509,6 +541,16 @@
     }
   </style>
 
+  <% if defined?(javascript_importmap_tags) %> <!-- Rails 7+ -->
+    <%= javascript_importmap_tags %>
+  <% else %> <!-- Rails 6 -->
+    <%= javascript_include_tag "application" %>
+  <% end %>
+  
+  <%= javascript_include_tag "llama_bot_rails/application" %>
+  <% if defined?(action_cable_meta_tag) %>
+    <%= action_cable_meta_tag %>
+  <% end %>
   <!-- Add Snarkdown CDN -->
   <script src="https://unpkg.com/snarkdown/dist/snarkdown.umd.js"></script>
 </head>
@@ -531,6 +573,7 @@
           </button>
           <div class="logo-container">
             <img src="https://service-jobs-images.s3.us-east-2.amazonaws.com/7rl98t1weu387r43il97h6ipk1l7" alt="LlamaBot Logo" class="logo">
+            <div id="connectionStatusIconForLlamaBot" class="connection-status status-yellow"></div>
           </div>
           <h1>LlamaBot Chat</h1>
         </div>
@@ -585,19 +628,95 @@
   <script>
     let currentThreadId = null;
     let isSidebarCollapsed = false;
-    let streamingTimeout = null;
-    const STREAMING_TIMEOUT_MS = 30000; // 30 seconds timeout
+    let lastPongTime = Date.now();
+    let redStatusStartTime = null;
+    let errorModalShown = false;
+    let connectionCheckInterval;
+    let subscription = null;
 
-    // Initialize the app
-    document.addEventListener('DOMContentLoaded', function() {
-      loadThreads();
+    function waitForCableConnection(callback) {
+      const interval = setInterval(() => {
+        if (window.LlamaBotRails && LlamaBotRails.cable) {
+          clearInterval(interval);
+          callback(LlamaBotRails.cable);
+        }
+      }, 50);
+    }
+    
+    waitForCableConnection((consumer) => {
+      const sessionId = crypto.randomUUID();
+
+      subscription = consumer.subscriptions.create({channel: 'LlamaBotRails::ChatChannel', session_id: sessionId}, {
+        connected() {
+          console.log('Connected to chat channel');
+          lastPongTime = Date.now();
+          loadThreads();
+          startConnectionCheck();
+        },
+        disconnected() {
+          console.log('Disconnected from chat channel');
+          updateStatusIcon('status-red');
+        },
+        received(data) {
+          const parsedData = JSON.parse(data).message;
+          switch (parsedData.type) {
+            case "ai":
+              addMessage(parsedData.content, parsedData.type, parsedData.base_message);
+              break;
+            case "tool":
+              addMessage(parsedData.content, parsedData.type, parsedData.base_message);
+              break;
+            case "error":
+              addMessage(parsedData.content, parsedData.type, parsedData.base_message);
+              break;
+            case "pong":
+              lastPongTime = Date.now();
+              break;
+          }
+        }
+      });
     });
+
+    function startConnectionCheck() {
+      if (connectionCheckInterval) {
+        clearInterval(connectionCheckInterval);
+      }
+      connectionCheckInterval = setInterval(updateConnectionStatus, 1000);
+    }
+
+    function updateConnectionStatus() {
+      const timeSinceLastPong = Date.now() - lastPongTime;
+      
+      if (timeSinceLastPong < 30000) { // Less than 30 seconds
+        updateStatusIcon('status-green');
+        redStatusStartTime = null;
+        errorModalShown = false;
+      } else if (timeSinceLastPong < 50000) { // Between 30-50 seconds
+        updateStatusIcon('status-yellow');
+        redStatusStartTime = null;
+        errorModalShown = false;
+      } else { // More than 50 seconds
+        updateStatusIcon('status-red');
+        if (!redStatusStartTime) {
+          redStatusStartTime = Date.now();
+        } else if (Date.now() - redStatusStartTime > 5000 && !errorModalShown) { // 5 seconds in red status
+          showErrorModal();
+        }
+      }
+    }
+
+    function updateStatusIcon(statusClass) {
+      const statusIndicator = document.getElementById('connectionStatusIconForLlamaBot');
+      statusIndicator.classList.remove('status-green', 'status-yellow', 'status-red');
+      statusIndicator.classList.add(statusClass);
+    }
 
     function showErrorModal() {
       const modal = document.getElementById('errorModal');
       const overlay = document.getElementById('modalOverlay');
       modal.classList.add('visible');
       overlay.classList.add('visible');
+      errorModalShown = true;
     }
 
     function closeErrorModal() {
@@ -764,54 +883,6 @@
       loadingIndicator.classList.remove('visible');
     }
 
-
-
-    function setupStreamingTimeout() {
-      // Clear any existing timeout
-      if (streamingTimeout) {
-        clearTimeout(streamingTimeout);
-      }
-      
-      // Set up new timeout
-      streamingTimeout = setTimeout(() => {
-        console.warn('Streaming timeout reached');
-        hideLoadingIndicator();
-        addMessage('Request timed out. LlamaBot may be processing a complex request. Please try again.', 'error');
-      }, STREAMING_TIMEOUT_MS);
-    }
-
-    function clearStreamingTimeout() {
-      if (streamingTimeout) {
-        clearTimeout(streamingTimeout);
-        streamingTimeout = null;
-      }
-    }
-
-    //    console.log('🤖 Testing streaming');
-    // testStreaming();
-    
-    async function testStreaming() {
-      const response = await fetch('/llama_bot/agent/test_streaming_2');
-      const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-      debugger;
-      let infinite_loop_protector = 0;
-      let in_infinite_loop = false;
-      while(!in_infinite_loop){ //infinite_loop_protector to protect against infinite loop
-        infinite_loop_protector++;
-        if (infinite_loop_protector > 10000) { //we shouldn't have 10000 loops, but just in case.
-          in_infinite_loop = true;
-          console.error('∞ ∞ ∞ Infinite loop prevented! ∞ ∞ ∞');
-        }
-        const { done, value } = reader.read();
-        console.log('🤖 SSE message:', value);
-        if (done) {
-          break;
-        }
-      }
-    }
-
     function selectPrompt(buttonElement) {
       const promptText = buttonElement.textContent;
       const messageInput = document.getElementById('message-input');
@@ -829,11 +900,18 @@
       }, 150);
     }
 
-    async function sendMessage() {
+    function sendMessage() {
       const input = document.getElementById('message-input');
       const message = input.value.trim();
       
       if (message) {
+        // Check if subscription is available
+        if (!subscription) {
+          console.error('WebSocket connection not established yet');
+          addMessage('Connection not ready. Please wait...', 'error');
+          return;
+        }
+
         // Clear welcome message if it exists
         const welcomeMessage = document.querySelector('.welcome-message');
         if (welcomeMessage) {
@@ -865,178 +943,8 @@
           thread_id: threadId
         };
         
-        console.log('Sending message with data:', messageData);
-        
-        try {
-          // Set up fetch for streaming
-          const response = await fetch('/llama_bot/agent/send_message', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(messageData)
-          });
-          
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
-          
-          // Set up streaming timeout
-          setupStreamingTimeout();
-          
-          // Set up the reader for the stream
-          const reader = response.body.getReader();
-          const decoder = new TextDecoder();
-          let buffer = '';
-
-          // const response_2 = await fetch('/llama_bot/agent/test_streaming', {
-          //   method: 'GET',
-          //   headers: {
-          //     'Content-Type': 'text/event-stream'
-          //   },
-          //   // body: JSON.stringify({
-          //   //   "message": message,
-          //   //   "thread_id": threadId
-          //   // })
-          // });
-
-          // const reader_2 = response_2.body.pipeThrough(new TextDecoderStream()).getReader();
-
-          // while (true) {
-          //   const { done, value } = await reader_2.read();
-          //   if (done) {
-          //     break;
-          //   }
-          //   // Process each SSE message (value)
-          //   console.log('🤖 SSE message:', value);
-          // }
-          
-          try {
-            while (true) {
-              const { done, value } = await reader.read();
-              console.log('Got a value from the stream 🧠 Stream value:', value);
-              
-              if (done) {
-                console.log('Stream completed');
-                clearStreamingTimeout();
-                break;
-              }
-              
-              // Decode the chunk and add to buffer
-              buffer += decoder.decode(value, { stream: true });
-              
-              // Process complete SSE events (separated by \n\n). These \n\n are added by the Rails middleware to make sure it exists.
-              while (buffer.includes('\n\n')) {
-                const eventEnd = buffer.indexOf('\n\n');
-                const eventBlock = buffer.slice(0, eventEnd);
-                buffer = buffer.slice(eventEnd + 2);
-                
-                // Parse SSE event
-                const dataLines = eventBlock.split('\n').filter(line => line.startsWith('data:'));
-                if (dataLines.length > 0) {
-                  
-                  //remove the 'data:' prefix from the line
-                  const jsonData = dataLines.map(line => line.substring(5).trim()).join(''); 
-                  
-                  try {
-                    const chunk = JSON.parse(jsonData);
-                    console.log('Processing chunk:', chunk);
-                    
-                    // Your existing chunk processing logic here...
-                    if (chunk.type === 'start') {
-                      console.log('Stream started:', chunk.request_id || 'unknown');
-                    } else if (chunk.type === 'final') {
-                      console.log('Stream completed');
-                      hideLoadingIndicator();
-                      clearStreamingTimeout();
-                    } else if (chunk.type === 'error') {
-                      console.error('Server error:', chunk);
-                      hideLoadingIndicator();
-                      clearStreamingTimeout();
-                      addMessage(`Error: ${chunk.content || 'Unknown error occurred'}`, 'error');
-                    } else if (chunk.type === 'ai') {
-                      addMessage(chunk.content, 'ai', chunk);
-                      hideLoadingIndicator();
-                      clearStreamingTimeout();
-                    } else if (chunk.type === 'tool') {
-                      addMessage(chunk.content, 'tool', chunk);
-                    } else {
-                      if (chunk.content) {
-                        addMessage(chunk.content, chunk.type || 'unknown', chunk);
-                      }
-                      console.log('Other chunk type:', chunk.type, chunk);
-                    }
-                    
-                  } catch (parseError) {
-                    console.error('Error parsing SSE data:', parseError, 'Data:', jsonData);
-                  }
-                }
-              }
-            }
-          } finally {
-            reader.releaseLock();
-          }
-          
-        } catch (error) {
-          console.error('Error in sendMessage:', error);
-          hideLoadingIndicator();
-          clearStreamingTimeout();
-          
-          // Show specific error message based on error type
-          let errorMessage = 'Error sending message. Please try again.';
-          if (error.name === 'TypeError' && error.message.includes('fetch')) {
-            errorMessage = 'Connection error. Please check if LlamaBot is running.';
-          } else if (error.message.includes('HTTP error')) {
-            errorMessage = `Server error: ${error.message}`;
-          }
-          
-          addMessage(errorMessage, 'error');
-        }
-      }
-    }
-
-    function processChunk(chunk) {
-      console.log('Processing chunk in fallback handler:', chunk);
-      
-      // Handle specific chunk types from Python backend
-      switch (chunk.type) {
-        case 'start':
-          console.log('Stream started:', chunk.request_id || 'unknown');
-          // Loading indicator already showing
-          break;
-          
-        case 'final':
-          console.log('Stream completed');
-          hideLoadingIndicator();
-          clearStreamingTimeout();
-          break;
-          
-        case 'error':
-          console.error('Server error:', chunk);
-          hideLoadingIndicator();
-          clearStreamingTimeout();
-          addMessage(`Error: ${chunk.content || 'Unknown error occurred'}`, 'error');
-          break;
-          
-        case 'ai':
-          // AI message from LangGraph
-          addMessage(chunk.content, 'ai', chunk);
-          hideLoadingIndicator();
-          clearStreamingTimeout();
-          break;
-          
-        case 'tool':
-          // Tool message from LangGraph
-          addMessage(chunk.content, 'tool', chunk);
-          break;
-          
-        default:
-          // Handle any other message types
-          if (chunk.content) {
-            addMessage(chunk.content, chunk.type || 'unknown', chunk);
-          }
-          console.log('Other chunk type:', chunk.type, chunk);
-          break;
+        console.log('Sending message with data:', messageData);  // Debug log
+        subscription.send(messageData);
       }
     }
 
