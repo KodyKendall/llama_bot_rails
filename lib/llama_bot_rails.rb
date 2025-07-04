@@ -9,7 +9,7 @@ module LlamaBotRails
     end
 
     def agent_prompt_path
-      Rails.root.join("config", "llama_bot", "agent_prompt.txt")
+      Rails.root.join("app", "llama_bot", "prompts", "agent_prompt.txt")
     end
 
     def agent_prompt_text

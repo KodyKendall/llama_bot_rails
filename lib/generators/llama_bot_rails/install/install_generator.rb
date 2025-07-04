@@ -14,9 +14,9 @@ module LlamaBotRails
           end
         end
 
-        def create_config_file
-            empty_directory "config/llama_bot"
-            copy_file "agent_prompt.txt", "config/llama_bot/agent_prompt.txt"
+        def create_agent_prompt
+            empty_directory "app/llama_bot/prompts"
+            copy_file "agent_prompt.txt", "app/llama_bot/prompts/agent_prompt.txt"
         end
 
         def create_agent_state_builder
