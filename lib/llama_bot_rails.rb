@@ -1,6 +1,7 @@
 require "llama_bot_rails/version"
 require "llama_bot_rails/engine"
 require "llama_bot_rails/llama_bot"
+require "llama_bot_rails/railtie"
 
 module LlamaBotRails
   class << self
