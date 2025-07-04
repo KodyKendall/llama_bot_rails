@@ -171,7 +171,26 @@ module LlamaBotRails
     private
 
     def state_builder_class
-      LlamaBotRails.config.state_builder_class.constantize
+      class_name = LlamaBotRails.config.state_builder_class
+      
+      # Try to constantize first
+      begin
+        class_name.constantize
+      rescue NameError
+        # If the class isn't loaded yet, try to require the file
+        # This handles cases where autoloading hasn't kicked in yet
+        Rails.logger.info "[LlamaBot] Attempting to autoload #{class_name}"
+        begin
+          # Force autoload by trying to access the constant again
+          # Rails will attempt to load it through its autoload mechanisms
+          Object.const_get(class_name)
+        rescue NameError => e
+          Rails.logger.error "[LlamaBot] Could not load state builder class #{class_name}: #{e.message}"
+          # Fall back to the default if the custom class can't be loaded
+          Rails.logger.info "[LlamaBot] Falling back to default state builder"
+          LlamaBotRails::AgentStateBuilder
+        end
+      end
     end
 
     def setup_external_websocket(connection_id)
