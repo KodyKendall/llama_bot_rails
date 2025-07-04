@@ -20,9 +20,9 @@ module LlamaBotRails
         end
 
         def create_agent_state_builder
-            empty_directory "lib/llama_bot_rails"
-            copy_file "agent_state_builder.rb", "lib/llama_bot_rails/agent_state_builder.rb"
-            say_status("created", "lib/llama_bot_rails/agent_state_builder.rb", :green)
+            empty_directory "app/llama_bot"
+            template "agent_state_builder.rb.erb", "app/llama_bot/agent_state_builder.rb"
+            say_status("created", "app/llama_bot/agent_state_builder.rb", :green)
         end
   
         def mount_engine
@@ -60,16 +60,21 @@ module LlamaBotRails
               # Custom State Builder
               # ------------------------------------------------------------------------
               # The gem uses `LlamaBotRails::AgentStateBuilder` by default.
-              # Uncomment this line and point it at your own class if you need to
-              # change the params passed to the LangGraph agent.
+              # Uncomment this line to use the builder in app/llama_bot/
               #
-              # config.llama_bot_rails.state_builder_class = "AppName::AgentStateBuilder"
+              # config.llama_bot_rails.state_builder_class = "#{app_name}::AgentStateBuilder"
             end
           RUBY
         end
   
         def finish
           say "\n✅ LlamaBotRails installed! Visit http://localhost:3000/llama_bot/agent/chat\n", :green
+        end
+
+        private
+
+        def app_name
+          Rails.application.class.module_parent_name
         end
       end
     end
