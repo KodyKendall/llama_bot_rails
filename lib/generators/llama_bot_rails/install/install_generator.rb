@@ -18,6 +18,12 @@ module LlamaBotRails
             empty_directory "config/llama_bot"
             copy_file "agent_prompt.txt", "config/llama_bot/agent_prompt.txt"
         end
+
+        def create_agent_state_builder
+            empty_directory "lib/llama_bot_rails"
+            copy_file "agent_state_builder.rb", "lib/llama_bot_rails/agent_state_builder.rb"
+            say_status("created", "lib/llama_bot_rails/agent_state_builder.rb", :green)
+        end
   
         def mount_engine
             say <<~MSG, :yellow
@@ -46,9 +52,18 @@ module LlamaBotRails
         def create_initializer
           create_file "config/initializers/llama_bot_rails.rb", <<~RUBY
             Rails.application.configure do
-              config.llama_bot_rails.websocket_url = ENV.fetch("LLAMABOT_WEBSOCKET_URL", "ws://localhost:8000/ws")
-              config.llama_bot_rails.llamabot_api_url = ENV.fetch("LLAMABOT_API_URL", "http://localhost:8000")
+              config.llama_bot_rails.websocket_url      = ENV.fetch("LLAMABOT_WEBSOCKET_URL", "ws://localhost:8000/ws")
+              config.llama_bot_rails.llamabot_api_url   = ENV.fetch("LLAMABOT_API_URL", "http://localhost:8000")
               config.llama_bot_rails.enable_console_tool = !Rails.env.production?
+
+              # ------------------------------------------------------------------------
+              # Custom State Builder
+              # ------------------------------------------------------------------------
+              # The gem uses `LlamaBotRails::AgentStateBuilder` by default.
+              # Uncomment this line and point it at your own class if you need to
+              # change the params passed to the LangGraph agent.
+              #
+              # config.llama_bot_rails.state_builder_class = "AppName::AgentStateBuilder"
             end
           RUBY
         end
