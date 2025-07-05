@@ -133,10 +133,9 @@ module LlamaBotRails
         # Forward the processed data to the LlamaBot Backend Socket
         message = data["message"]
 
-        # 1. Instantiate the builder
         builder = state_builder_class.new(
-          params: { message: data["message"] },
-          context: { thread_id: data["thread_id"], api_token: @api_token }
+          params: data,
+          context: { api_token: @api_token }
         )
 
         # 2. Construct the LangGraph-ready state
