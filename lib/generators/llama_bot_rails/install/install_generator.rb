@@ -14,9 +14,15 @@ module LlamaBotRails
           end
         end
 
-        def create_config_file
-            empty_directory "config/llama_bot"
-            copy_file "agent_prompt.txt", "config/llama_bot/agent_prompt.txt"
+        def create_agent_prompt
+            empty_directory "app/llama_bot/prompts"
+            copy_file "agent_prompt.txt", "app/llama_bot/prompts/agent_prompt.txt"
+        end
+
+        def create_agent_state_builder
+            empty_directory "app/llama_bot"
+            template "agent_state_builder.rb.erb", "app/llama_bot/agent_state_builder.rb"
+            say_status("created", "app/llama_bot/agent_state_builder.rb", :green)
         end
   
         def mount_engine
@@ -46,15 +52,29 @@ module LlamaBotRails
         def create_initializer
           create_file "config/initializers/llama_bot_rails.rb", <<~RUBY
             Rails.application.configure do
-              config.llama_bot_rails.websocket_url = ENV.fetch("LLAMABOT_WEBSOCKET_URL", "ws://localhost:8000/ws")
-              config.llama_bot_rails.llamabot_api_url = ENV.fetch("LLAMABOT_API_URL", "http://localhost:8000")
+              config.llama_bot_rails.websocket_url      = ENV.fetch("LLAMABOT_WEBSOCKET_URL", "ws://localhost:8000/ws")
+              config.llama_bot_rails.llamabot_api_url   = ENV.fetch("LLAMABOT_API_URL", "http://localhost:8000")
               config.llama_bot_rails.enable_console_tool = !Rails.env.production?
+
+              # ------------------------------------------------------------------------
+              # Custom State Builder
+              # ------------------------------------------------------------------------
+              # The gem uses `LlamaBotRails::AgentStateBuilder` by default.
+              # Uncomment this line to use the builder in app/llama_bot/
+              #
+              # config.llama_bot_rails.state_builder_class = "#{app_name}::AgentStateBuilder"
             end
           RUBY
         end
   
         def finish
           say "\n✅ LlamaBotRails installed! Visit http://localhost:3000/llama_bot/agent/chat\n", :green
+        end
+
+        private
+
+        def app_name
+          Rails.application.class.module_parent_name
         end
       end
     end

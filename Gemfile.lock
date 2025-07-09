@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    llama_bot_rails (0.1.7)
+    llama_bot_rails (0.1.9)
       actioncable (>= 6.0, < 9.0)
       async
       async-http

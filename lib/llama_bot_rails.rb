@@ -1,6 +1,7 @@
 require "llama_bot_rails/version"
 require "llama_bot_rails/engine"
 require "llama_bot_rails/llama_bot"
+require "llama_bot_rails/railtie"
 
 module LlamaBotRails
   class << self
@@ -9,7 +10,7 @@ module LlamaBotRails
     end
 
     def agent_prompt_path
-      Rails.root.join("config", "llama_bot", "agent_prompt.txt")
+      Rails.root.join("app", "llama_bot", "prompts", "agent_prompt.txt")
     end
 
     def agent_prompt_text

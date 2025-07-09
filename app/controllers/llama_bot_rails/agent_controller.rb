@@ -85,8 +85,8 @@ module LlamaBotRails
 
             # 1. Instantiate the builder
             builder = state_builder_class.new(
-                params: { message: params[:message] },
-                context: { thread_id: params[:thread_id], api_token: @api_token }
+                params: params,
+                context: { api_token: @api_token }
             )
     
             # 2. Construct the LangGraph-ready state

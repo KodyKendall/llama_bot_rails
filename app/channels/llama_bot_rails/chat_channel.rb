@@ -133,10 +133,9 @@ module LlamaBotRails
         # Forward the processed data to the LlamaBot Backend Socket
         message = data["message"]
 
-        # 1. Instantiate the builder
         builder = state_builder_class.new(
-          params: { message: data["message"] },
-          context: { thread_id: data["thread_id"], api_token: @api_token }
+          params: data,
+          context: { api_token: @api_token }
         )
 
         # 2. Construct the LangGraph-ready state
@@ -171,7 +170,27 @@ module LlamaBotRails
     private
 
     def state_builder_class
-      LlamaBotRails.config.state_builder_class.constantize
+      builder_class_name = LlamaBotRails.config.state_builder_class || 'LlamaBotRails::AgentStateBuilder'
+
+      begin
+        builder_class_name.constantize
+      rescue NameError => e
+        # If it's not the default class, try to manually load from app/llama_bot
+        if builder_class_name != 'LlamaBotRails::AgentStateBuilder'
+          llama_bot_file = Rails.root.join("app", "llama_bot", "agent_state_builder.rb")
+          if llama_bot_file.exist?
+            Rails.logger.info "[LlamaBot] Autoload failed, attempting to manually load #{llama_bot_file}"
+            begin
+              load llama_bot_file.to_s
+              return builder_class_name.constantize
+            rescue => load_error
+              Rails.logger.error "[LlamaBot] Manual load failed: #{load_error.message}"
+            end
+          end
+        end
+        
+        raise NameError, "Could not load state builder class '#{builder_class_name}'. Make sure it's defined in app/llama_bot/agent_state_builder.rb or is available in your autoload paths. Original error: #{e.message}"
+      end
     end
 
     def setup_external_websocket(connection_id)
