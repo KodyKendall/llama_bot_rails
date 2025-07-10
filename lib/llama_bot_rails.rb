@@ -1,7 +1,9 @@
 require "llama_bot_rails/version"
 require "llama_bot_rails/engine"
+
+# require "llama_bot_rails/railtie" # We don't need this, as we're loading the LlamaBot path directly in the engine.
 require "llama_bot_rails/llama_bot"
-require "llama_bot_rails/railtie"
+require "llama_bot_rails/agent_state_builder"
 
 module LlamaBotRails
   class << self
