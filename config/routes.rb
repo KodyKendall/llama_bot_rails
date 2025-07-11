@@ -1,6 +1,8 @@
 LlamaBotRails::Engine.routes.draw do
   post "agent/command", to: "agent#command"
   get "agent/chat", to: "agent#chat"
+  get "/", to: "agent#chat"
+  get "/ws", to: "agent#chat_ws"
   get "agent/chat_ws", to: "agent#chat_ws"
   get "agent/threads", to: "agent#threads"
   get "agent/chat-history/:thread_id", to: "agent#chat_history"

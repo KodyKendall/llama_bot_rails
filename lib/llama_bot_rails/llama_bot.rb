@@ -6,7 +6,7 @@ module LlamaBotRails
   #This class is responsible for initiating HTTP requests to the FastAPI backend that takes us to LangGraph.
   class LlamaBot
     def self.get_threads
-      uri = URI('http://localhost:8000/threads')
+      uri = URI("#{Rails.application.config.llama_bot_rails.llamabot_api_url}/threads")
       response = Net::HTTP.get_response(uri)
       JSON.parse(response.body)
     rescue => e
@@ -15,7 +15,7 @@ module LlamaBotRails
     end
 
     def self.get_chat_history(thread_id)
-      uri = URI("http://localhost:8000/chat-history/#{thread_id}")
+      uri = URI("#{Rails.application.config.llama_bot_rails.llamabot_api_url}/chat-history/#{thread_id}")
       response = Net::HTTP.get_response(uri)
       JSON.parse(response.body)
     rescue => e
@@ -26,7 +26,7 @@ module LlamaBotRails
     def self.send_agent_message(agent_params)
       return enum_for(__method__, agent_params) unless block_given?
 
-      uri = URI("http://localhost:8000/llamabot-chat-message")
+      uri = URI("#{Rails.application.config.llama_bot_rails.llamabot_api_url}/llamabot-chat-message")
       http = Net::HTTP.new(uri.host, uri.port)
       
       request = Net::HTTP::Post.new(uri)

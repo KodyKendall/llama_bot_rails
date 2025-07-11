@@ -11,8 +11,8 @@ module LlamaBotRails
     end
 
     config.llama_bot_rails = ActiveSupport::OrderedOptions.new
-    config.llama_bot_rails.websocket_url = 'ws://localhost:8000/ws' # <-- default
-    config.llama_bot_rails.llamabot_api_url = "http://localhost:8000"
+    config.llama_bot_rails.websocket_url = ENV['LLAMABOT_WEBSOCKET_URL'] || 'ws://llamabot-backend:8000/ws' # <-- default for Docker Compose
+    config.llama_bot_rails.llamabot_api_url = ENV['LLAMABOT_API_URL'] || "http://llamabot-backend:8000" # <-- default for Docker Compose
     config.llama_bot_rails.enable_console_tool = true
     
     initializer "llama_bot_rails.assets.precompile" do |app|
