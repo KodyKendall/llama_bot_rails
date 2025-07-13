@@ -42,8 +42,7 @@ RSpec.describe LlamaBotRails::AgentController, type: :controller do
     end
 
     before do
-      # Mock the authentication if needed
-      allow(controller).to receive(:authenticate_agent!).and_return(true)
+      # Note: send_message action doesn't require authentication
     end
 
     context 'when streaming succeeds' do
@@ -127,10 +126,10 @@ RSpec.describe LlamaBotRails::AgentController, type: :controller do
 
       it 'uses the send_agent_message method with a block for streaming' do
         # This test verifies we call the streaming method correctly
-        expect(LlamaBotRails::LlamaBot).to receive(:send_agent_message) do |msg, tid, &block|
+        expect(LlamaBotRails::LlamaBot).to receive(:send_agent_message) do |agent_params, &block|
           expect(block).to be_present  # Verify a block is passed
-          expect(msg).to include(message: message)
-          expect(params[:thread_id]).to eq(thread_id) if params.key?(:thread_id)
+          expect(agent_params).to include(message: message)
+          expect(agent_params[:thread_id]).to eq(thread_id) if agent_params.key?(:thread_id)
         end
 
         post :send_message, body: params_hash.to_json

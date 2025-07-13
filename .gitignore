@@ -9,3 +9,12 @@
 /spec/dummy/storage/
 /spec/dummy/tmp/
 *.gem
+
+.bundle/
+vendor/
+gems/
+specifications/
+bin/
+extensions/
+
+Gemfile.lock
