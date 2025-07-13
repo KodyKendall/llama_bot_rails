@@ -27,6 +27,9 @@ Rails.application.configure do
 
   # Render exception templates for rescuable exceptions and raise for other exceptions.
   config.action_dispatch.show_exceptions = :rescuable
+  
+  # Set secret key for message verifier in test environment
+  config.secret_key_base = 'a' * 64
 
   # Disable request forgery protection in test environment.
   config.action_controller.allow_forgery_protection = false

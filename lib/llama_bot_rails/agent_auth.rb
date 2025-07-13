@@ -4,6 +4,9 @@ module LlamaBotRails
       AUTH_SCHEME = "LlamaBot"
   
       included do
+        # Add before_action filter to automatically check agent authentication for LlamaBot requests
+        before_action :check_agent_authentication, if: :llama_bot_request?
+        
         # ------------------------------------------------------------------
         # 1) For every Devise scope, alias authenticate_<scope>! so it now
         #    accepts *either* a logged-in browser session OR a valid agent
@@ -34,8 +37,17 @@ module LlamaBotRails
         #    that had authenticate_user! manually defined don’t break.
         # ------------------------------------------------------------------
         unless defined?(Devise)
-          alias_method :authenticate_user!, :authenticate_user_or_agent! \
-            if method_defined?(:authenticate_user!)
+          # Store the original method if it exists
+          original_authenticate_user = if method_defined?(:authenticate_user!)
+            instance_method(:authenticate_user!)
+          else
+            nil
+          end
+          
+          # Define the new method that calls authenticate_user_or_agent!
+          define_method(:authenticate_user!) do |*args|
+            authenticate_user_or_agent!(*args)
+          end
         end
       end
   
@@ -43,10 +55,11 @@ module LlamaBotRails
       # Public helper: true if the request carries a *valid* agent token
       # --------------------------------------------------------------------
       def llama_bot_request?
+        return false unless request&.headers
         scheme, token = request.headers["Authorization"]&.split(" ", 2)
         Rails.logger.debug("[LlamaBot] auth header = #{scheme.inspect} #{token&.slice(0,8)}…")
         return false unless scheme == AUTH_SCHEME && token.present?
-  
+
         Rails.application.message_verifier(:llamabot_ws).verify(token)
         true
       rescue ActiveSupport::MessageVerifier::InvalidSignature
@@ -56,10 +69,27 @@ module LlamaBotRails
       private
   
       # --------------------------------------------------------------------
+      # Automatic check for LlamaBot requests - called by before_action filter
+      # --------------------------------------------------------------------
+      def check_agent_authentication
+        return unless llama_bot_request?
+        
+        # Check if the action is whitelisted for LlamaBot
+        allowed = self.class.respond_to?(:llama_bot_permitted_actions) &&
+                  self.class.llama_bot_permitted_actions.include?(action_name)
+        
+        unless allowed
+          Rails.logger.warn("[LlamaBot] Action '#{action_name}' isn't white-listed for LlamaBot. To fix this, include LlamaBotRails::ControllerExtensions and add `llama_bot_allow :method` in your controller.")
+          render json: { error: "Action '#{action_name}' isn't white-listed for LlamaBot. To fix this, include LlamaBotRails::ControllerExtensions and add `llama_bot_allow :method` in your controller." }, status: :forbidden
+        end
+      end
+
+      # --------------------------------------------------------------------
       # Unified guard — browser OR agent
       # --------------------------------------------------------------------
       def devise_user_signed_in?
         return false unless defined?(Devise)
+        return false unless request&.env
         request.env["warden"]&.authenticated?
       end
   
@@ -71,20 +101,18 @@ module LlamaBotRails
             allowed = self.class.respond_to?(:llama_bot_permitted_actions) &&
                     self.class.llama_bot_permitted_actions.include?(action_name)
 
-            return if allowed        # ✅ token + allow-listed action
-
-            Rails.logger.debug("[LlamaBot] Action '#{action_name}' is allowed for LlamaBot.")
-            Rails.logger.debug("[LlamaBot] self.class.llama_bot_permitted_actions = #{self.class.llama_bot_permitted_actions}")
-            Rails.logger.debug("[LlamaBot] self.class.llama_bot_permitted_actions.include?(action_name) = #{self.class.llama_bot_permitted_actions.include?(action_name)}")
-            
-            # ❌ auth token is valid, but the attempted controller action is not added to the whitelist.
-            Rails.logger.warn("[LlamaBot] Action '#{action_name}' isn't white-listed for LlamaBot. To fix this, include LlamaBotRails::ControllerExtensions and add `llama_bot_allow :method` in your controller.")
-            render json: { error: "Action '#{action_name}' isn't white-listed for LlamaBot. To fix this, include LlamaBotRails::ControllerExtensions and add `llama_bot_allow :method` in your controller." }, status: :forbidden
-            return false
+            if allowed
+              return  # ✅ token + allow-listed action - authentication succeeds
+            else
+              # ❌ auth token is valid, but the attempted controller action is not added to the whitelist.
+              Rails.logger.warn("[LlamaBot] Action '#{action_name}' isn't white-listed for LlamaBot. To fix this, include LlamaBotRails::ControllerExtensions and add `llama_bot_allow :method` in your controller.")
+              render json: { error: "Action '#{action_name}' isn't white-listed for LlamaBot. To fix this, include LlamaBotRails::ControllerExtensions and add `llama_bot_allow :method` in your controller." }, status: :forbidden
+              return false
+            end
         end
-  
-        # Neither path worked — fall back to Devise’s normal behaviour and let Devise handle 401
-        if defined?(Devise)
+
+        # Neither path worked — fall back to Devise's normal behaviour and let Devise handle 401
+        if defined?(Devise) && request&.env
           request.env["warden"].authenticate!  # 401 or redirect
         else
           head :unauthorized

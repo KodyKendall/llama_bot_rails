@@ -23,5 +23,10 @@ module LlamaBotRails
     initializer "llama_bot_rails.defaults" do |app|
       app.config.llama_bot_rails.state_builder_class ||= "LlamaBotRails::AgentStateBuilder"
     end
+    
+    initializer "llama_bot_rails.message_verifier" do |app|
+      # Ensure the message verifier is available
+      Rails.application.message_verifier(:llamabot_ws)
+    end
   end
 end

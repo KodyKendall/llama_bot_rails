@@ -211,4 +211,87 @@ RSpec.describe LlamaBotRails::AgentController, type: :controller do
       expect(events.last ).to include('"type":"final"')
     end
   end
+
+  describe 'POST #command' do
+    let(:valid_token) { Rails.application.message_verifier(:llamabot_ws).generate({session_id: 'test'}) }
+    let(:command) { 'puts "Hello World"' }
+    
+    context 'with valid authentication' do
+      before do
+        request.headers['Authorization'] = "LlamaBot #{valid_token}"
+      end
+      
+      it 'executes the command successfully' do
+        post :command, params: { command: command }
+        expect(response).to have_http_status(:success)
+        
+        result = JSON.parse(response.body)
+        expect(result).to have_key('output')
+        expect(result).to have_key('result')
+      end
+      
+      it 'handles command execution errors' do
+        post :command, params: { command: 'raise "Test error"' }
+        expect(response).to have_http_status(:success)
+        
+        result = JSON.parse(response.body)
+        expect(result).to have_key('error')
+        expect(result['error']).to include('Test error')
+      end
+    end
+    
+    context 'with invalid authentication' do
+      before do
+        request.headers['Authorization'] = 'LlamaBot invalid-token'
+      end
+      
+      it 'returns unauthorized' do
+        post :command, params: { command: command }
+        expect(response).to have_http_status(:unauthorized)
+      end
+    end
+    
+    context 'with missing authentication' do
+      it 'returns unauthorized' do
+        post :command, params: { command: command }
+        expect(response).to have_http_status(:unauthorized)
+      end
+    end
+    
+    context 'with expired token' do
+      let(:expired_token) do
+        Rails.application.message_verifier(:llamabot_ws).generate(
+          {session_id: 'test'}, 
+          expires_in: -1.minute
+        )
+      end
+      
+      before do
+        request.headers['Authorization'] = "LlamaBot #{expired_token}"
+      end
+      
+      it 'returns unauthorized' do
+        post :command, params: { command: command }
+        expect(response).to have_http_status(:unauthorized)
+      end
+    end
+  end
+
+  describe 'AgentAuth integration' do
+    it 'includes AgentAuth module' do
+      expect(controller.class.ancestors).to include(LlamaBotRails::AgentAuth)
+    end
+    
+    it 'responds to llama_bot_request?' do
+      expect(controller).to respond_to(:llama_bot_request?)
+    end
+    
+    it 'has authenticate_user_or_agent! filter on command action' do
+      filters = controller.class._process_action_callbacks.select do |callback|
+        callback.filter == :authenticate_user_or_agent! && callback.kind == :before
+      end
+      
+      expect(filters).not_to be_empty
+    end
+  end
 end

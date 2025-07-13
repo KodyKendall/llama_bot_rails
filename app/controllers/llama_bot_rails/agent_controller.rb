@@ -3,8 +3,12 @@ module LlamaBotRails
     class AgentController < ActionController::Base
         include ActionController::Live
         include LlamaBotRails::AgentAuth
+        include LlamaBotRails::ControllerExtensions
+        
+        llama_bot_allow :command
+        
         skip_before_action :verify_authenticity_token, only: [:command, :send_message]
-        before_action :authenticate_agent!, only: [:command]
+        before_action :authenticate_user_or_agent!, only: [:command]
 
         # POST /agent/command
         def command
@@ -18,17 +22,14 @@ module LlamaBotRails
             result = safety_eval(input)
             $stdout = STDOUT
             
-            # If result is a string and output has content, prefer output
-            final_result = if output.string.present?
-                             output.string.strip
-                           else
-                             result
-                           end
-            
-            render json: { result: final_result }
+            # Return both output and result
+            render json: { 
+              output: output.string.strip, 
+              result: result 
+            }
         rescue => e
             $stdout = STDOUT  # Reset stdout on error
-            render json: { error: e.class.name, message: e.message }, status: :unprocessable_entity
+            render json: { error: "#{e.class.name}: #{e.message}" }
         end
 
         def index
@@ -132,17 +133,15 @@ module LlamaBotRails
         private 
 
         def safety_eval(input)
-            begin
-                # Change to Rails root directory for file operations
-                Dir.chdir(Rails.root) do
-                    # Create a safer evaluation context
-                    Rails.logger.info "[[LlamaBot]] Evaluating input: #{input}"
-                    binding.eval(input)
-                end
-            rescue => exception
-                Rails.logger.error "Error in safety_eval: #{exception.message}"
-                return exception.message
+            # Change to Rails root directory for file operations
+            Dir.chdir(Rails.root) do
+                # Create a safer evaluation context
+                Rails.logger.info "[[LlamaBot]] Evaluating input: #{input}"
+                binding.eval(input)
             end
+        rescue => exception
+            Rails.logger.error "Error in safety_eval: #{exception.message}"
+            raise exception
         end
 
         def state_builder_class
