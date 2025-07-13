@@ -4,8 +4,13 @@ require "llama_bot_rails/engine"
 # require "llama_bot_rails/railtie" # We don't need this, as we're loading the LlamaBot path directly in the engine.
 require "llama_bot_rails/llama_bot"
 require "llama_bot_rails/agent_state_builder"
+require "llama_bot_rails/controller_extensions"
+require "llama_bot_rails/agent_auth"
 
 module LlamaBotRails
+  # Global allow-list tells llamabot which routes it can access.
+  mattr_accessor :allowed_routes, default: Set.new
+
   class << self
     def config
       Rails.application.config.llama_bot_rails

@@ -2,6 +2,7 @@ require 'llama_bot_rails/llama_bot'
 module LlamaBotRails
     class AgentController < ActionController::Base
         include ActionController::Live
+        include LlamaBotRails::AgentAuth
         skip_before_action :verify_authenticity_token, only: [:command, :send_message]
         before_action :authenticate_agent!, only: [:command]
 
@@ -142,14 +143,6 @@ module LlamaBotRails
                 Rails.logger.error "Error in safety_eval: #{exception.message}"
                 return exception.message
             end
-        end
-
-        def authenticate_agent!
-            auth_header = request.headers["Authorization"]
-            token = auth_header&.split("Bearer ")&.last  # Extract token after "Bearer "
-            @session_payload = Rails.application.message_verifier(:llamabot_ws).verify(token)
-        rescue ActiveSupport::MessageVerifier::InvalidSignature
-            head :unauthorized
         end
 
         def state_builder_class

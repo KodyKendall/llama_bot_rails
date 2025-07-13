@@ -1,5 +1,11 @@
 module LlamaBotRails
   class Railtie < ::Rails::Railtie
+    initializer "llama_bot.include_controller_extensions" do
+      ActiveSupport.on_load(:action_controller) do
+        include LlamaBotRails::ControllerExtensions
+      end
+    end
+
     config.before_configuration do |app|
       llama_bot_path = Rails.root.join("app", "llama_bot")
 
