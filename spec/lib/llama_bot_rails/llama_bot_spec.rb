@@ -144,7 +144,7 @@ RSpec.describe LlamaBotRails::LlamaBot do
 
       it 'yields each parsed JSON chunk' do
         yielded_chunks = []
-        described_class.send_agent_message(message, thread_id) do |chunk|
+        described_class.send_agent_message({ message: message, thread_id: thread_id }) do |chunk|
           yielded_chunks << chunk
         end
 
@@ -157,7 +157,7 @@ RSpec.describe LlamaBotRails::LlamaBot do
         expect(Net::HTTP).to receive(:new).with('localhost', 8000)
         expect(Net::HTTP::Post).to receive(:new).with(instance_of(URI::HTTP))
 
-        described_class.send_agent_message(message, thread_id) { |chunk| }
+        described_class.send_agent_message({ message: message, thread_id: thread_id }) { |chunk| }
       end
 
       it 'sets correct headers' do
@@ -176,7 +176,7 @@ RSpec.describe LlamaBotRails::LlamaBot do
         allow(mock_response).to receive(:code).and_return(200)
         allow(mock_response).to receive(:read_body)
 
-        described_class.send_agent_message(message, thread_id) { |chunk| }
+        described_class.send_agent_message({ message: message, thread_id: thread_id }) { |chunk| }
       end
     end
 
@@ -197,12 +197,12 @@ RSpec.describe LlamaBotRails::LlamaBot do
       end
 
       it 'returns an Enumerator' do
-        result = described_class.send_agent_message(message, thread_id)
+        result = described_class.send_agent_message({ message: message, thread_id: thread_id })
         expect(result).to be_an(Enumerator)
       end
 
       it 'enumerator yields the same chunks as block version' do
-        enumerator = described_class.send_agent_message(message, thread_id)
+        enumerator = described_class.send_agent_message({ message: message, thread_id: thread_id })
         chunks = enumerator.to_a
 
         expect(chunks).to include(ai_response)
@@ -236,7 +236,7 @@ RSpec.describe LlamaBotRails::LlamaBot do
         expect(Rails.logger).to receive(:error).with(/Final buffer parse error/)
         
         yielded_chunks = []
-        described_class.send_agent_message(message, thread_id) do |chunk|
+        described_class.send_agent_message({ message: message, thread_id: thread_id }) do |chunk|
           yielded_chunks << chunk
         end
 
@@ -266,7 +266,7 @@ RSpec.describe LlamaBotRails::LlamaBot do
         expect(Rails.logger).to receive(:error).with(/Parse error/)
 
         yielded_chunks = []
-        described_class.send_agent_message(message, thread_id) do |chunk|
+        described_class.send_agent_message({ message: message, thread_id: thread_id }) do |chunk|
           yielded_chunks << chunk
         end
 
@@ -280,7 +280,7 @@ RSpec.describe LlamaBotRails::LlamaBot do
       end
 
       it 'returns an Enumerator when called without block (error during enumeration)' do
-        result = described_class.send_agent_message(message, thread_id)
+        result = described_class.send_agent_message({ message: message, thread_id: thread_id })
         expect(result).to be_an(Enumerator)
         
         # The error happens when we try to iterate
@@ -292,7 +292,7 @@ RSpec.describe LlamaBotRails::LlamaBot do
         expect(Rails.logger).to receive(:error).with("Error sending agent message: Connection refused")
         
         yielded_chunks = []
-        result = described_class.send_agent_message(message, thread_id) do |chunk|
+        result = described_class.send_agent_message({ message: message, thread_id: thread_id }) do |chunk|
           yielded_chunks << chunk
         end
         
@@ -318,7 +318,7 @@ RSpec.describe LlamaBotRails::LlamaBot do
 
       it 'does not yield any chunks for error responses' do
         yielded_chunks = []
-        described_class.send_agent_message(message, thread_id) do |chunk|
+        described_class.send_agent_message({ message: message, thread_id: thread_id }) do |chunk|
           yielded_chunks << chunk
         end
 
@@ -340,12 +340,12 @@ RSpec.describe LlamaBotRails::LlamaBot do
         allow(mock_http).to receive(:request).and_yield(mock_response)
 
         expect(mock_request).to receive(:body=).with(
-          { message: message, thread_id: nil }.to_json
+          { message: message }.to_json
         )
       end
 
       it 'sends minimal request body when optional params are nil' do
-        described_class.send_agent_message(message) { |chunk| }
+        described_class.send_agent_message({ message: message }) { |chunk| }
       end
     end
 
@@ -371,7 +371,7 @@ RSpec.describe LlamaBotRails::LlamaBot do
 
         yielded_chunks = []
         expect {
-          described_class.send_agent_message(message, thread_id) do |chunk|
+          described_class.send_agent_message({ message: message, thread_id: thread_id }) do |chunk|
             yielded_chunks << chunk
           end
         }.not_to raise_error
@@ -384,7 +384,7 @@ RSpec.describe LlamaBotRails::LlamaBot do
 
         yielded_chunks = []
         expect {
-          described_class.send_agent_message(message, thread_id) do |chunk|
+          described_class.send_agent_message({ message: message, thread_id: thread_id }) do |chunk|
             yielded_chunks << chunk
           end
         }.not_to raise_error

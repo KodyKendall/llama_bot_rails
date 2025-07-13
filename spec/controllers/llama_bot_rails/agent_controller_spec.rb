@@ -42,8 +42,7 @@ RSpec.describe LlamaBotRails::AgentController, type: :controller do
     end
 
     before do
-      # Mock the authentication if needed
-      allow(controller).to receive(:authenticate_agent!).and_return(true)
+      # Note: send_message action doesn't require authentication
     end
 
     context 'when streaming succeeds' do
@@ -127,10 +126,10 @@ RSpec.describe LlamaBotRails::AgentController, type: :controller do
 
       it 'uses the send_agent_message method with a block for streaming' do
         # This test verifies we call the streaming method correctly
-        expect(LlamaBotRails::LlamaBot).to receive(:send_agent_message) do |msg, tid, &block|
+        expect(LlamaBotRails::LlamaBot).to receive(:send_agent_message) do |agent_params, &block|
           expect(block).to be_present  # Verify a block is passed
-          expect(msg).to include(message: message)
-          expect(params[:thread_id]).to eq(thread_id) if params.key?(:thread_id)
+          expect(agent_params).to include(message: message)
+          expect(agent_params[:thread_id]).to eq(thread_id) if agent_params.key?(:thread_id)
         end
 
         post :send_message, body: params_hash.to_json
@@ -210,6 +209,89 @@ RSpec.describe LlamaBotRails::AgentController, type: :controller do
       events = response.body.split("\n\n").map { |e| e.sub(/^data:\s*/, '') }
       expect(events.first).to include('assistant')
       expect(events.last ).to include('"type":"final"')
+    end
+  end
+
+  describe 'POST #command' do
+    let(:valid_token) { Rails.application.message_verifier(:llamabot_ws).generate({session_id: 'test'}) }
+    let(:command) { 'puts "Hello World"' }
+    
+    context 'with valid authentication' do
+      before do
+        request.headers['Authorization'] = "LlamaBot #{valid_token}"
+      end
+      
+      it 'executes the command successfully' do
+        post :command, params: { command: command }
+        expect(response).to have_http_status(:success)
+        
+        result = JSON.parse(response.body)
+        expect(result).to have_key('output')
+        expect(result).to have_key('result')
+      end
+      
+      it 'handles command execution errors' do
+        post :command, params: { command: 'raise "Test error"' }
+        expect(response).to have_http_status(:success)
+        
+        result = JSON.parse(response.body)
+        expect(result).to have_key('error')
+        expect(result['error']).to include('Test error')
+      end
+    end
+    
+    context 'with invalid authentication' do
+      before do
+        request.headers['Authorization'] = 'LlamaBot invalid-token'
+      end
+      
+      it 'returns unauthorized' do
+        post :command, params: { command: command }
+        expect(response).to have_http_status(:unauthorized)
+      end
+    end
+    
+    context 'with missing authentication' do
+      it 'returns unauthorized' do
+        post :command, params: { command: command }
+        expect(response).to have_http_status(:unauthorized)
+      end
+    end
+    
+    context 'with expired token' do
+      let(:expired_token) do
+        Rails.application.message_verifier(:llamabot_ws).generate(
+          {session_id: 'test'}, 
+          expires_in: -1.minute
+        )
+      end
+      
+      before do
+        request.headers['Authorization'] = "LlamaBot #{expired_token}"
+      end
+      
+      it 'returns unauthorized' do
+        post :command, params: { command: command }
+        expect(response).to have_http_status(:unauthorized)
+      end
+    end
+  end
+
+  describe 'AgentAuth integration' do
+    it 'includes AgentAuth module' do
+      expect(controller.class.ancestors).to include(LlamaBotRails::AgentAuth)
+    end
+    
+    it 'responds to llama_bot_request?' do
+      expect(controller).to respond_to(:llama_bot_request?)
+    end
+    
+    it 'has authenticate_user_or_agent! filter on command action' do
+      filters = controller.class._process_action_callbacks.select do |callback|
+        callback.filter == :authenticate_user_or_agent! && callback.kind == :before
+      end
+      
+      expect(filters).not_to be_empty
     end
   end
 end

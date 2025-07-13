@@ -89,6 +89,15 @@ RSpec.configure do |config|
   # Set the default path for specs
   config.default_path = 'spec'
 
+  # Configure LlamaBotRails for testing
+  config.before(:each) do
+    Rails.application.config.llama_bot_rails ||= ActiveSupport::OrderedOptions.new
+    Rails.application.config.llama_bot_rails.llamabot_api_url = "http://localhost:8000"
+    Rails.application.config.llama_bot_rails.websocket_url = "ws://localhost:8000/ws"
+    Rails.application.config.llama_bot_rails.enable_console_tool = true
+    Rails.application.config.llama_bot_rails.state_builder_class = "LlamaBotRails::AgentStateBuilder"
+  end
+
   # Configure WebMock for different test types
   config.before(:each, type: :feature) do
     WebMock.allow_net_connect!

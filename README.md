@@ -160,6 +160,23 @@ Rails.application.configure do
 end
 ```
 
+## **Principle of Least Priviledge**: Whitelisting Controller Actions
+
+Rather than giving the agent full access to your Rails app via the Rails console, You can whitelist controller actions instead.
+
+```
+class PagesController < ApplicationController
+  include LlamaBotRails::ControllerExtensions
+  include LlamaBotRails::AgentAuth
+  
+  # ─── Allow the agent to hit these actions ────────────────────────────────
+  llama_bot_allow :update #uses llama_bot_rails "authenticate_user_or_agent!" on top of your existing devise authentication.
+
+  skip_before_action :authenticate_user_or_agent!, only: [:show] #NOTE: You must change any skip_before_action callbacks that skip devise Authentication, to use :authenticate_user_or_agent!
+```
+
+When you include LlamaBotRails::AgentAuth, the gem aliases any authenticate_<scope>! filters to a unified guard. You can keep your old callbacks/skips for now, but you’ll see a deprecation warning—switch to authenticate_user_or_agent! at your convenience.
+
 ## 🧪 **What You Can Build**
 
 ### Developer Assistant

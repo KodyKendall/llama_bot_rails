@@ -11,8 +11,9 @@ module LlamaBotRails
     end
 
     config.llama_bot_rails = ActiveSupport::OrderedOptions.new
-    config.llama_bot_rails.websocket_url = ENV['LLAMABOT_WEBSOCKET_URL'] || 'ws://llamabot-backend:8000/ws' # <-- default for Docker Compose
-    config.llama_bot_rails.llamabot_api_url = ENV['LLAMABOT_API_URL'] || "http://llamabot-backend:8000" # <-- default for Docker Compose
+
+    config.llama_bot_rails.websocket_url = 'ws://llamabot-backend:8000/ws'
+    config.llama_bot_rails.llamabot_api_url ="http://llamabot-backend:8000"
     config.llama_bot_rails.enable_console_tool = true
     
     initializer "llama_bot_rails.assets.precompile" do |app|
@@ -21,6 +22,11 @@ module LlamaBotRails
 
     initializer "llama_bot_rails.defaults" do |app|
       app.config.llama_bot_rails.state_builder_class ||= "LlamaBotRails::AgentStateBuilder"
+    end
+    
+    initializer "llama_bot_rails.message_verifier" do |app|
+      # Ensure the message verifier is available
+      Rails.application.message_verifier(:llamabot_ws)
     end
   end
 end
