@@ -157,6 +157,7 @@ RSpec.describe 'Agent Authentication and Authorization Integration', type: :cont
         # (simulating a valid token being provided)
 
         allow(controller).to receive(:llama_bot_request?).and_return(true)
+        allow(Rails.application.message_verifier(:llamabot_ws)).to receive(:verify).and_return({ 'user_id' => 123 })
         
         get :action_requiring_auth
         expect(response).to have_http_status(:success)

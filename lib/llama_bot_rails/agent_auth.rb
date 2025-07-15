@@ -74,8 +74,9 @@ module LlamaBotRails
       def check_agent_authentication
         return unless llama_bot_request?
 
-        # scheme, token = request.headers["Authorization"]&.split(" ", 2)
-        # Rails.application.message_verifier(:llamabot_ws).verify(token) # make sure the token is valid.
+        # Just added these:
+        scheme, token = request.headers["Authorization"]&.split(" ", 2)
+        Rails.application.message_verifier(:llamabot_ws).verify(token) # make sure the token is valid.
         
         # Check if the action is whitelisted for LlamaBot
         allowed = self.class.respond_to?(:llama_bot_permitted_actions) &&
