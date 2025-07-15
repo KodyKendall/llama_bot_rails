@@ -30,7 +30,7 @@ RSpec.describe LlamaBotRails::AgentAuth, type: :controller do
     allow(request).to receive(:env).and_return('warden' => warden)
   end
 
-  describe '#llama_bot_request?' do
+  describe '#llama_bot_authenticated_request?' do
     let(:token) { Rails.application.message_verifier(:llamabot_ws).generate({session_id: 'test'}) }
     
     context 'with valid LlamaBot token' do
@@ -41,7 +41,7 @@ RSpec.describe LlamaBotRails::AgentAuth, type: :controller do
       end
       
       it 'returns true' do
-        expect(controller.llama_bot_request?).to be true
+        expect(controller.llama_bot_authenticated_request?).to be true
       end
     end
     
@@ -53,7 +53,7 @@ RSpec.describe LlamaBotRails::AgentAuth, type: :controller do
       end
       
       it 'returns false' do
-        expect(controller.llama_bot_request?).to be false
+        expect(controller.llama_bot_authenticated_request?).to be false
       end
     end
     
@@ -63,7 +63,7 @@ RSpec.describe LlamaBotRails::AgentAuth, type: :controller do
       end
       
       it 'returns false' do
-        expect(controller.llama_bot_request?).to be false
+        expect(controller.llama_bot_authenticated_request?).to be false
       end
     end
     
@@ -75,7 +75,7 @@ RSpec.describe LlamaBotRails::AgentAuth, type: :controller do
       end
       
       it 'returns false' do
-        expect(controller.llama_bot_request?).to be false
+        expect(controller.llama_bot_authenticated_request?).to be false
       end
     end
     
@@ -94,7 +94,7 @@ RSpec.describe LlamaBotRails::AgentAuth, type: :controller do
       end
       
       it 'returns false' do
-        expect(controller.llama_bot_request?).to be false
+        expect(controller.llama_bot_authenticated_request?).to be false
       end
     end
   end
@@ -106,7 +106,7 @@ RSpec.describe LlamaBotRails::AgentAuth, type: :controller do
       end
       
       it 'allows access without checking agent token' do
-        expect(controller).not_to receive(:llama_bot_request?)
+        expect(controller).not_to receive(:llama_bot_authenticated_request?)
         controller.send(:authenticate_user_or_agent!)
       end
     end

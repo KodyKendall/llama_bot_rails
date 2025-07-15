@@ -153,10 +153,10 @@ RSpec.describe 'Agent Authentication and Authorization Integration', type: :cont
       end
       
       it 'falls back to agent authentication' do
-        # Mock llama_bot_request? to return true for this test case
+        # Mock llama_bot_authenticated_request? to return true for this test case
         # (simulating a valid token being provided)
 
-        allow(controller).to receive(:llama_bot_request?).and_return(true)
+        allow(controller).to receive(:llama_bot_authenticated_request?).and_return(true)
         
         get :action_requiring_auth
         expect(response).to have_http_status(:success)
