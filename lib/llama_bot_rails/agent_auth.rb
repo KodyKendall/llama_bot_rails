@@ -102,6 +102,11 @@ module LlamaBotRails
                     self.class.llama_bot_permitted_actions.include?(action_name)
 
             if allowed
+              data = Rails.application.message_verifier(:llamabot_ws).verify(params[:api_token])
+              # user = LlamaBotRails.user_resolver.call(request.env) ||
+              #         User.find_by(id: data['user_id'])        # fallback
+              # head :unauthorized unless user
+              # @current_llamabot_user = user # This is the user that will be used to access the controller actions.
               return  # ✅ token + allow-listed action - authentication succeeds
             else
               # ❌ auth token is valid, but the attempted controller action is not added to the whitelist.

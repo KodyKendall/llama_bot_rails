@@ -81,7 +81,7 @@ module LlamaBotRails
             response.headers['Connection']    = 'keep-alive'
 
             @api_token = Rails.application.message_verifier(:llamabot_ws).generate(
-                { session_id: SecureRandom.uuid },
+                { session_id: SecureRandom.uuid },#, user_id: current_llamabot_user&.id},
                 expires_in: 30.minutes
               )
 

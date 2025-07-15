@@ -63,6 +63,19 @@ module LlamaBotRails
               # Uncomment this line to use the builder in app/llama_bot/
               #
               # config.llama_bot_rails.state_builder_class = "#{app_name}::AgentStateBuilder"
+
+              # ------------------------------------------------------------------------
+              # Custom User Resolver
+              # ------------------------------------------------------------------------
+              # The gem uses `warden.user` by default.
+              # Uncomment this line to use a custom user resolver in app/llama_bot/
+              # Example: if you don’t use Devise, uncomment and tweak:
+              # LlamaBotRails.user_resolver = ->(env) do
+              #   # Rack session example
+              #   if id = env['rack.session'][:account_id]
+              #     Account.find_by(id: id)
+              #   end
+              # end
             end
           RUBY
         end

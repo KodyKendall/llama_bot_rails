@@ -48,7 +48,7 @@ module LlamaBotRails
       begin
 
         @api_token = Rails.application.message_verifier(:llamabot_ws).generate(
-          { session_id: SecureRandom.uuid },
+          { session_id: SecureRandom.uuid },#, user_id: LlamaBotRails.user_resolver&.id},
           expires_in: 30.minutes
         )
 
