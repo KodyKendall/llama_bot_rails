@@ -282,8 +282,8 @@ RSpec.describe LlamaBotRails::AgentController, type: :controller do
       expect(controller.class.ancestors).to include(LlamaBotRails::AgentAuth)
     end
     
-    it 'responds to llama_bot_authenticated_request?' do
-      expect(controller).to respond_to(:llama_bot_authenticated_request?)
+    it 'responds to llama_bot_request?' do
+      expect(controller).to respond_to(:llama_bot_request?)
     end
     
     it 'has authenticate_user_or_agent! filter on command action' do
