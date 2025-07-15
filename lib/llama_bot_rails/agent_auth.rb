@@ -72,16 +72,27 @@ module LlamaBotRails
       # Automatic check for LlamaBot requests - called by before_action filter
       # --------------------------------------------------------------------
       def check_agent_authentication
-        return unless llama_bot_request?
+        is_llama_request = llama_bot_request?
+        
+        return unless is_llama_request
 
-        # Just added these:
+        # Token verification
         scheme, token = request.headers["Authorization"]&.split(" ", 2)
-        Rails.application.message_verifier(:llamabot_ws).verify(token) # make sure the token is valid.
+        begin
+          decoded_token = Rails.application.message_verifier(:llamabot_ws).verify(token)
+        rescue => e
+          Rails.logger.debug("[[LlamaBot Debug]] Token verification failed: #{e.class} - #{e.message}")
+        end
+
+        # Authorization check
+        has_permitted_actions = self.class.respond_to?(:llama_bot_permitted_actions)
         
-        # Check if the action is whitelisted for LlamaBot
-        allowed = self.class.respond_to?(:llama_bot_permitted_actions) &&
-                  self.class.llama_bot_permitted_actions.include?(action_name)
-        
+        if has_permitted_actions
+          permitted = self.class.llama_bot_permitted_actions
+        end
+
+        allowed = has_permitted_actions && self.class.llama_bot_permitted_actions.include?(action_name)
+
         unless allowed
           Rails.logger.warn("[LlamaBot] Action '#{action_name}' isn't white-listed for LlamaBot. To fix this, include LlamaBotRails::ControllerExtensions and add `llama_bot_allow :method` in your controller.")
           render json: { error: "Action '#{action_name}' isn't white-listed for LlamaBot. To fix this, include LlamaBotRails::ControllerExtensions and add `llama_bot_allow :method` in your controller." }, status: :forbidden
@@ -102,19 +113,20 @@ module LlamaBotRails
 
         # 2) LlamaBot token present AND action allowed?
         if llama_bot_request?
-          # scheme, token = request.headers["Authorization"]&.split(" ", 2)
-          # data = Rails.application.message_verifier(:llamabot_ws).verify(token)
+          scheme, token = request.headers["Authorization"]&.split(" ", 2)
+          data = Rails.application.message_verifier(:llamabot_ws).verify(token)
 
           allowed = self.class.respond_to?(:llama_bot_permitted_actions) &&
                   self.class.llama_bot_permitted_actions.include?(action_name)
 
           if allowed
-            # @current_llamabot_user_id = data['user_id']
-            # @current_llamabot_user = LlamaBotRails.user_resolver.call(request.env) ||
-            #                         User.find_by(id: data['user_id'])        # fallback
-            # head :unauthorized unless @current_llamabot_user
+            
+            user_object = LlamaBotRails.user_resolver.call(data[:user_id])
+            unless LlamaBotRails.sign_in_method.call(request.env, user_object)
+              head :unauthorized
+            end
 
-            return  # ✅ token + allow-listed action - authentication succeeds
+            return  # ✅ token + allow-listed action + user found and set properly for rack environment
           else
             # ❌ auth token is valid, but the attempted controller action is not added to the whitelist.
             Rails.logger.warn("[LlamaBot] Action '#{action_name}' isn't white-listed for LlamaBot. To fix this, include LlamaBotRails::ControllerExtensions and add `llama_bot_allow :method` in your controller.")

@@ -17,9 +17,41 @@ module LlamaBotRails
   # Lambda that receives Rack env and returns a user-like object
   class << self
     attr_accessor :user_resolver
+    attr_accessor :current_user_resolver
+
+    attr_accessor :sign_in_method
   end
+  
   # Default (Devise / Warden); returns nil if Devise absent
-  self.user_resolver = ->(env) { env['warden']&.user }
+  self.user_resolver = ->(user_id) do
+    # Try to find a User model, fallback to nil if not found
+    # byebug
+    if defined?(Devise)
+      default_scope = Devise.default_scope # e.g., :user
+      user_class = Devise.mappings[default_scope].to
+      user_class.find_by(id: user_id)
+    else
+      Rails.logger.warn("[[LlamaBot]] Implement a user_resolver! in your app to resolve the user from the user_id.")
+      nil
+    end
+  end
+
+  # Default (Devise / Warden); returns nil if Devise absent
+  self.current_user_resolver = ->(env) do
+    # Try to find a User model, fallback to nil if not found
+    if defined?(Devise)
+      env['warden']&.user
+    else
+      Rails.logger.warn("[[LlamaBot]] Implement a current_user_resolver! in your app to resolve the current user from the environment.")
+      nil
+    end
+  end
+
+  # Lambda that receives Rack env and user_id, and sets the user in the warden session
+  # Default sign-in method is configured for Devise with Warden.
+  self.sign_in_method = ->(env, user) do
+    env['warden']&.set_user(user)
+  end
 
   # Convenience helper for host-app initializers
   def self.config = Rails.application.config.llama_bot_rails

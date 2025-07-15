@@ -47,11 +47,6 @@ module LlamaBotRails
         # Use a begin/rescue block to catch thread creation errors
       begin
 
-        @api_token = Rails.application.message_verifier(:llamabot_ws).generate(
-          { session_id: SecureRandom.uuid },#, user_id: LlamaBotRails.user_resolver&.id},
-          expires_in: 30.minutes
-        )
-
         @worker = Thread.new do
             Thread.current[:connection_id] = @connection_id
           Thread.current.abort_on_exception = true  # This will help surface errors
@@ -126,7 +121,15 @@ module LlamaBotRails
     # through external websocket to FastAPI/Python backend.
     def receive(data)
       begin
-        #used to validate the message before it's sent to the backend.
+        #used to validate the message before it's sent to the llamabot-backend.
+
+        # Get the currently logged in user from the environment.
+        current_user = LlamaBotRails.current_user_resolver.call(connection.env)
+
+        @api_token = Rails.application.message_verifier(:llamabot_ws).generate(
+          { session_id: SecureRandom.uuid, user_id: current_user&.id},
+          expires_in: 30.minutes
+        )
 
         #This could be an example of how we might implement hooks & filters in the future.
         validate_message(data) #Placeholder for now, we are using this to mock errors being thrown. In the future, we can add actual validation logic.        
