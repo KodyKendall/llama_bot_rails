@@ -5,7 +5,7 @@ module LlamaBotRails
   
       included do
         # Add before_action filter to automatically check agent authentication for LlamaBot requests
-        before_action :check_agent_authentication, if: :llama_bot_request?
+        before_action :check_agent_authentication, if: :should_check_agent_auth?
         
         # ------------------------------------------------------------------
         # 1) For every Devise scope, alias authenticate_<scope>! so it now
@@ -54,6 +54,14 @@ module LlamaBotRails
       # --------------------------------------------------------------------
       # Public helper: true if the request carries a *valid* agent token
       # --------------------------------------------------------------------
+      def should_check_agent_auth?
+        # Skip agent authentication entirely if a Devise user is already signed in
+        return false if devise_user_signed_in?
+        
+        # Only check for LlamaBot requests if no Devise user is signed in
+        llama_bot_request?
+      end
+
       def llama_bot_request?
         return false unless request&.headers
         scheme, token = request.headers["Authorization"]&.split(" ", 2)
@@ -72,31 +80,31 @@ module LlamaBotRails
       # Automatic check for LlamaBot requests - called by before_action filter
       # --------------------------------------------------------------------
       def check_agent_authentication
-        is_llama_request = llama_bot_request?
-        
-        return unless is_llama_request
-
-        # Token verification
-        scheme, token = request.headers["Authorization"]&.split(" ", 2)
-        begin
-          decoded_token = Rails.application.message_verifier(:llamabot_ws).verify(token)
-        rescue => e
-          Rails.logger.debug("[[LlamaBot Debug]] Token verification failed: #{e.class} - #{e.message}")
-        end
-
-        # Authorization check
+        # Check if this controller has LlamaBot-aware actions
         has_permitted_actions = self.class.respond_to?(:llama_bot_permitted_actions)
         
-        if has_permitted_actions
-          permitted = self.class.llama_bot_permitted_actions
+        # Skip if controller doesn't use llama_bot_allow at all
+        return unless has_permitted_actions
+        
+        is_llama_request = llama_bot_request?
+        action_is_whitelisted = self.class.llama_bot_permitted_actions.include?(action_name)
+        
+        if is_llama_request
+          # If it's a LlamaBot request, only allow whitelisted actions
+          unless action_is_whitelisted
+            Rails.logger.warn("[LlamaBot] Action '#{action_name}' isn't white-listed for LlamaBot. To fix this, add `llama_bot_allow :#{action_name}` in your controller.")
+            render json: { error: "Action '#{action_name}' isn't white-listed for LlamaBot. To fix this, add `llama_bot_allow :#{action_name}` in your controller." }, status: :forbidden
+            return
+          end
+          Rails.logger.debug("[[LlamaBot Debug]] Valid LlamaBot request for action '#{action_name}'")
+        elsif action_is_whitelisted
+          # If action requires LlamaBot auth but request isn't a LlamaBot request, reject it
+          Rails.logger.warn("[LlamaBot] Action '#{action_name}' requires LlamaBot authentication, but request is not a valid LlamaBot request.")
+          render json: { error: "Action '#{action_name}' requires LlamaBot authentication" }, status: :forbidden
+          return
         end
-
-        allowed = has_permitted_actions && self.class.llama_bot_permitted_actions.include?(action_name)
-
-        unless allowed
-          Rails.logger.warn("[LlamaBot] Action '#{action_name}' isn't white-listed for LlamaBot. To fix this, include LlamaBotRails::ControllerExtensions and add `llama_bot_allow :method` in your controller.")
-          render json: { error: "Action '#{action_name}' isn't white-listed for LlamaBot. To fix this, include LlamaBotRails::ControllerExtensions and add `llama_bot_allow :method` in your controller." }, status: :forbidden
-        end
+        
+        # All other cases: non-LlamaBot requests to non-whitelisted actions are allowed
       end
 
       # --------------------------------------------------------------------

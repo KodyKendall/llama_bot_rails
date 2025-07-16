@@ -96,6 +96,35 @@ RSpec.configure do |config|
     Rails.application.config.llama_bot_rails.websocket_url = "ws://localhost:8000/ws"
     Rails.application.config.llama_bot_rails.enable_console_tool = true
     Rails.application.config.llama_bot_rails.state_builder_class = "LlamaBotRails::AgentStateBuilder"
+    
+    # Reset LlamaBotRails global state to prevent test isolation issues
+    # Reset to defaults instead of nil to preserve default lambda implementations
+    LlamaBotRails.instance_variable_set(:@configuration, nil) if LlamaBotRails.instance_variable_defined?(:@configuration)
+    
+    # Reset user resolvers to their defaults (from lib/llama_bot_rails.rb)
+    LlamaBotRails.user_resolver = ->(user_id) do
+      if defined?(Devise)
+        default_scope = Devise.default_scope
+        user_class = Devise.mappings[default_scope].to
+        user_class.find_by(id: user_id)
+      else
+        Rails.logger.warn("[[LlamaBot]] Implement a user_resolver! in your app to resolve the user from the user_id.")
+        nil
+      end
+    end
+    
+    LlamaBotRails.current_user_resolver = ->(env) do
+      if defined?(Devise)
+        env['warden']&.user
+      else
+        Rails.logger.warn("[[LlamaBot]] Implement a current_user_resolver! in your app to resolve the current user from the environment.")
+        nil
+      end
+    end
+    
+    LlamaBotRails.sign_in_method = ->(env, user) do
+      env['warden']&.set_user(user)
+    end
   end
 
   # Configure WebMock for different test types

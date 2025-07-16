@@ -151,6 +151,7 @@ module LlamaBotRails
         Rails.logger.info "[LlamaBot] Got message from Javascript LlamaBot Frontend: #{data.inspect}"
       rescue => e
         Rails.logger.error "[LlamaBot] Error in receive method: #{e.message}"
+        Rails.logger.error "[LlamaBot] Backtrace: #{e.backtrace.join("\n")}"
         send_message_to_frontend("error", e.message)
       end
     end
