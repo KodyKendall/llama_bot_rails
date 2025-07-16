@@ -4,14 +4,23 @@ module LlamaBotRails
         include ActionController::Live
         include LlamaBotRails::AgentAuth
         include LlamaBotRails::ControllerExtensions
-        
+
         llama_bot_allow :command
         
         skip_before_action :verify_authenticity_token, only: [:command, :send_message]
-        before_action :authenticate_user_or_agent!, only: [:command]
+        # skip_before_action :authenticate_user_or_agent!, only: [:command]
+        
+        before_action :check_agent_authentication
 
         # POST /agent/command
         def command
+
+            unless LlamaBotRails.config.enable_console_tool
+                Rails.logger.warn("[[LlamaBot Debug]] Console tool is disabled")
+                render json: { error: "Console tool is disabled" }, status: :forbidden
+                return
+            end
+
             input = params[:command]
             
             # Capture both stdout and return value
@@ -21,11 +30,11 @@ module LlamaBotRails
             $stdout = output
             result = safety_eval(input)
             $stdout = STDOUT
-            
+
             # Return both output and result
             render json: { 
-              output: output.string.strip, 
-              result: result 
+                output: output.string.strip, 
+                result: result 
             }
         rescue => e
             $stdout = STDOUT  # Reset stdout on error
@@ -80,10 +89,13 @@ module LlamaBotRails
             response.headers['Cache-Control'] = 'no-cache'
             response.headers['Connection']    = 'keep-alive'
 
+            # Get the currently logged in user from the environment.
+            current_user = LlamaBotRails.current_user_resolver.call(request.env)
+
             @api_token = Rails.application.message_verifier(:llamabot_ws).generate(
-                { session_id: SecureRandom.uuid },
+                { session_id: SecureRandom.uuid, user_id: current_user&.id},
                 expires_in: 30.minutes
-              )
+            )
 
             # 1. Instantiate the builder
             builder = state_builder_class.new(

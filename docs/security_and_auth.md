@@ -20,9 +20,9 @@ The gem uses *signed bearer tokens* for **authentication** and a **controller‑
 
 ## 2  Authenticating inbound agent requests
 
-Every network hop that enters your Rails app passes through **`agent_controller.rb#authenticate_agent!`**. The filter is automatically prepended to all routes declared with `llama_bot_allow`.
+Every network hop that enters your Rails app passes through **`agent_controller.rb#check_agent_authentication`**. The filter is automatically prepended to all routes declared with `llama_bot_allow`.
 
-### 2.1  How `authenticate_agent!` works  ▶ diagram
+### 2.1  How `check_agent_authentication` works  ▶ diagram
 
 1. **Bearer token expected**
    The incoming HTTP request **must** include
