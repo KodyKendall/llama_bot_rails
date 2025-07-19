@@ -30,6 +30,9 @@ module LlamaBotRails
       http = Net::HTTP.new(uri.host, uri.port)
       
       request = Net::HTTP::Post.new(uri)
+      
+      http.use_ssl = (uri.scheme == "https")
+
       request['Content-Type'] = 'application/json'
       request.body = agent_params.to_json
 

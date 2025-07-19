@@ -5,6 +5,7 @@ require "llama_bot_rails/llama_bot"
 require "llama_bot_rails/agent_state_builder"
 require "llama_bot_rails/controller_extensions"
 require "llama_bot_rails/agent_auth"
+require "llama_bot_rails/route_helper"
 
 module LlamaBotRails
   # ------------------------------------------------------------------
