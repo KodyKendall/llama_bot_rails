@@ -5,7 +5,10 @@ module LlamaBotRails
   
       included do
         # Add before_action filter to automatically check agent authentication for LlamaBot requests
-        before_action :check_agent_authentication, if: :should_check_agent_auth?
+
+        if self < ActionController::Base
+          before_action :check_agent_authentication, if: :should_check_agent_auth?
+        end
         
         # ------------------------------------------------------------------
         # 1) For every Devise scope, alias authenticate_<scope>! so it now
