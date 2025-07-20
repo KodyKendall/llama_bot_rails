@@ -100,7 +100,7 @@ module LlamaBotRails
             # 1. Instantiate the builder
             builder = state_builder_class.new(
                 params: params,
-                context: { api_token: @api_token }
+                context: { api_token: @api_token }.with_indifferent_access
             )
     
             # 2. Construct the LangGraph-ready state

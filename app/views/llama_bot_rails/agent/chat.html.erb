@@ -968,6 +968,7 @@
                     }
                     
                   } catch (parseError) {
+                    addMessage(`Error: ${parseError} - Data: ${jsonData}`, 'error');
                     console.error('Error parsing SSE data:', parseError, 'Data:', jsonData);
                   }
                 }

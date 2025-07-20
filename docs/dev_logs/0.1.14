@@ -1,0 +1,3 @@
+07/19/2025: Add a bright error message if a tool call fails and we fail to parse it in chat.html.erb.
+
+07/19/2025: Add with_indifferent_access to our context hash that passes in an api_token so that we can access it with either :api_token or "api_token" in agent_state_builder.rb (caused a bug during the hackathon)
