@@ -659,7 +659,10 @@ This deprecated and will be removed over time.
         },
         received(data) {
           const parsedData = JSON.parse(data).message;
+          console.log("LLM Response:", parsedData);
           switch (parsedData.type) {
+            case "AIMessageChunk":
+              addMessage(parsedData.content, parsedData.type, parsedData.base_message);
             case "ai":
               addMessage(parsedData.content, parsedData.type, parsedData.base_message);
               break;
@@ -966,6 +969,11 @@ This deprecated and will be removed over time.
       const messageDiv = document.createElement('div');
       messageDiv.className = `message ${sender}-message`;
       
+      if (sender == "AIMessageChunk"){
+        console.log("AIMessageChunk" + base_message);
+        messageDiv.innerHTML += text;
+      }
+      
       // Parse markdown for bot messages using Snarkdown, keep plain text for user messages
       if (sender === 'ai') { //Arghh. We're having issues with difference in formats between when we're streaming from updates mode, and when pulling state from checkpoint.
         if (text == ''){ //this is most likely a tool call.
@@ -1151,7 +1159,8 @@ This deprecated and will be removed over time.
 
         }
         else {
-          messageDiv.innerHTML = snarkdown(text); 
+          messageDiv.innerHTML = text;
+//          messageDiv.innerHTML = snarkdown(text); 
         }
       } else if (sender === 'tool') { //tool messages are not parsed as markdown
         if (base_message.name == 'run_rails_console_command') {
