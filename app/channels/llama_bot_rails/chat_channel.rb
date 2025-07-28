@@ -265,66 +265,67 @@ module LlamaBotRails
 
     # Listen for messages from the LlamaBot Backend
     def listen_to_external_websocket(connection)
-      while message = connection.read
+      begin
+        while message = connection.read
+          # Extract the actual message content
+          message_content = message.buffer if message.buffer
+          next unless message_content.present?
 
-        #Try to fix the ping/pong issue keepliave
-        # if message.type == :ping
-        
-        #   # respond with :pong
-        #   connection.write(Async::WebSocket::Messages::ControlFrame.new(:pong, frame.data))
-        #   connection.flush
-        #   next
-        # end
-        # Extract the actual message content
-        if message.buffer
-          message_content = message.buffer  # Use .data to get the message content
-        else
-          message_content = message.content
-        end
+          Rails.logger.info "[LlamaBot] Received from external WebSocket: #{message_content}"
 
-        Rails.logger.info "[LlamaBot] Received from external WebSocket: #{message_content}"
-        
-        begin
-          parsed_message = JSON.parse(message_content)
-          
-          if parsed_message["type"] != "pong"
-            # byebug
+          begin
+            parsed_message = JSON.parse(message_content)
+            
+            formatted_message = { message: {type: parsed_message["type"], content: parsed_message['content'], base_message: parsed_message["base_message"]} }.to_json
+            case parsed_message["type"]
+            when "error"
+              Rails.logger.error "[LlamaBot] ---------Received error message!----------"
+              response = parsed_message['content']
+              formatted_message = { message: message_content }.to_json
+              Rails.logger.error "[LlamaBot] ---------------------> Response: #{response}"
+              Rails.logger.error "[LlamaBot] ---------Completed error message!----------"
+            when "pong"
+              # Tell llamabot frontend that we've received a pong response, and we're still connected
+              formatted_message = { message: {type: "pong"} }.to_json
+            end
+            ActionCable.server.broadcast "chat_channel_#{params[:session_id]}", formatted_message
+          rescue JSON::ParserError => e
+            Rails.logger.error "[LlamaBot] Failed to parse message as JSON: #{e.message}"
+            # Continue to the next message without crashing the listener.
+            next
           end
-          formatted_message = { message: {type: parsed_message["type"], content: parsed_message['content'], base_message: parsed_message["base_message"]} }.to_json
-          case parsed_message["type"]
-          when "error"
-            Rails.logger.error "[LlamaBot] ---------Received error message!----------"
-            response = parsed_message['content']
-            formatted_message = { message: message_content }.to_json
-            Rails.logger.error "[LlamaBot] ---------------------> Response: #{response}"
-            Rails.logger.error "[LlamaBot] ---------Completed error message!----------"
-          when "pong"
-            # Tell llamabot frontend that we've received a pong response, and we're still connected
-            formatted_message = { message: {type: "pong"} }.to_json
-          end
-        rescue JSON::ParserError => e
-          Rails.logger.error "[LlamaBot] Failed to parse message as JSON: #{e.message}"
         end
-        ActionCable.server.broadcast "chat_channel_#{params[:session_id]}", formatted_message
+      rescue IOError, Errno::ECONNRESET => e
+        # This is a recoverable error. Log it and allow the task to end gracefully.
+        # The `ensure` block in `setup_external_websocket` will handle the cleanup.
+        Rails.logger.warn "[LlamaBot] Connection lost while listening: #{e.message}. The connection will be closed."
       end
     end
 
     ###
     def send_keep_alive_pings(connection)
       loop do
-        ping_message = {
-          type: 'ping',
-          connection_id: @connection_id,
-          connection_state: !connection.closed? ? 'connected' : 'disconnected',
-          connection_class: connection.class.name
-        }.to_json
-        connection.write(ping_message)
-        connection.flush
-        Rails.logger.debug "[LlamaBot] Sent keep-alive ping: #{ping_message}"
+        # Stop the loop gracefully if the connection has already been closed.
+        break if connection.closed?
+        
+        begin
+          ping_message = {
+            type: 'ping',
+            connection_id: @connection_id,
+            connection_state: !connection.closed? ? 'connected' : 'disconnected',
+            connection_class: connection.class.name
+          }.to_json
+          connection.write(ping_message)
+          connection.flush
+          Rails.logger.debug "[LlamaBot] Sent keep-alive ping: #{ping_message}"
+        rescue IOError, Errno::ECONNRESET => e
+          Rails.logger.warn "[LlamaBot] Could not send ping, connection likely closed: #{e.message}"
+          # Break the loop to allow the task to terminate gracefully.
+          break
+        end
+
         Async::Task.current.sleep(30)
       end
-    rescue => e
-      Rails.logger.error "[LlamaBot] Error in keep-alive ping: #{e.message} | Connection type: #{connection.class.name}"
     end
 
     # Send messages from the user to the LlamaBot Backend Socket
