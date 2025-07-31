@@ -88,6 +88,16 @@ module LlamaBotRails
           end
         end
 
+        # Close the external WebSocket connection BEFORE stopping async tasks
+        if @external_ws_connection
+          begin
+            @external_ws_connection.close
+            Rails.logger.info "👋 [LlamaBot] Gracefully closed external WebSocket connection for: #{connection_id}"
+          rescue => e
+            Rails.logger.warn "❌ [LlamaBot] Could not close WebSocket connection: #{e.message}"
+          end
+        end
+
         # Clean up async tasks with better error handling
         begin
           @listener_task&.stop rescue nil
@@ -95,16 +105,6 @@ module LlamaBotRails
           @external_ws_task&.stop rescue nil
         rescue => e
           Rails.logger.error "[LlamaBot] Error stopping async tasks: #{e.message}"
-        end
-        
-        # Clean up the connection
-        if @external_ws_connection
-          begin
-            @external_ws_connection.close
-            Rails.logger.info "[LlamaBot] Closed external WebSocket connection for: #{connection_id}"
-          rescue => e
-            Rails.logger.warn "[LlamaBot] Could not close WebSocket connection: #{e.message}"
-          end
         end
         
         # Force garbage collection in development/test environments to help clean up
@@ -253,12 +253,15 @@ module LlamaBotRails
           # Wait for tasks to complete or connection to close
           [@listener_task, @keepalive_task].each(&:wait)
         rescue => e
-          Rails.logger.error "[LlamaBot] Failed to connect to external WebSocket for connection #{connection_id}: #{e.message}"
+          Rails.logger.error "❌ [LlamaBot] Failed to connect to external WebSocket for connection #{connection_id}: #{e.message}"
         ensure
           # Clean up tasks if they exist
           @listener_task&.stop
           @keepalive_task&.stop
-          @external_ws_connection&.close
+          if @external_ws_connection
+            @external_ws_connection.close
+            Rails.logger.info "👋 [LlamaBot] Cleaned up external WebSocket connection in ensure block"
+          end
         end
       end
     end
@@ -298,7 +301,7 @@ module LlamaBotRails
       rescue IOError, Errno::ECONNRESET => e
         # This is a recoverable error. Log it and allow the task to end gracefully.
         # The `ensure` block in `setup_external_websocket` will handle the cleanup.
-        Rails.logger.warn "[LlamaBot] Connection lost while listening: #{e.message}. The connection will be closed."
+        Rails.logger.warn "❌ [LlamaBot] Connection lost while listening: #{e.message}. The connection will be closed."
       end
     end
 
@@ -319,7 +322,7 @@ module LlamaBotRails
           connection.flush
           Rails.logger.debug "[LlamaBot] Sent keep-alive ping: #{ping_message}"
         rescue IOError, Errno::ECONNRESET => e
-          Rails.logger.warn "[LlamaBot] Could not send ping, connection likely closed: #{e.message}"
+          Rails.logger.warn "❌ [LlamaBot] Could not send ping, connection likely closed: #{e.message}"
           # Break the loop to allow the task to terminate gracefully.
           break
         end
