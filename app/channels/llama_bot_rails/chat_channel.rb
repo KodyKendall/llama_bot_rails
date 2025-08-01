@@ -209,9 +209,20 @@ module LlamaBotRails
       end
       
       uri = URI(websocket_url)
-      
-      uri.scheme = 'wss'
-      uri.scheme = 'ws' if Rails.env.development?
+
+      # Normalize the WebSocket URI scheme so it is always either ws:// or wss://.
+      # We want to gracefully handle users passing in http/https URLs or omitting a scheme entirely.
+      case uri.scheme&.downcase
+      when 'wss', 'ws'
+        # already valid, do nothing
+      when 'https'
+        uri.scheme = 'wss'
+      when 'http'
+        uri.scheme = 'ws'
+      else
+        # If a scheme is missing or unrecognized, fall back to sensible defaults
+        uri.scheme = Rails.env.development? ? 'ws' : 'wss'
+      end
 
       endpoint = Async::HTTP::Endpoint.new(
           uri,
