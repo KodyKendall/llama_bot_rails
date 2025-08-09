@@ -39,14 +39,17 @@ module LlamaBotRails
       begin
         stream_from "chat_channel_#{params[:session_id]}" # Public stream for session-based messages <- this is the channel we're subscribing to in _websocket.html.erb
         Rails.logger.info "[LlamaBot] Subscribed to chat channel with session ID: #{params[:session_id]}"
-        
+        @agent_state_builder_class = params[:agent_state_builder_class]
+        if @agent_state_builder_class.blank? #defaults to the config file if not provided
+          @agent_state_builder_class = LlamaBotRails.config.state_builder_class || 'LlamaBotRails::AgentStateBuilder'
+        end
+
         @connection_id = SecureRandom.uuid
         Rails.logger.info "[LlamaBot] Created new connection with ID: #{@connection_id}"
         Rails.logger.info "[LlamaBot] Secure API token generated."
 
         # Use a begin/rescue block to catch thread creation errors
       begin
-
         @worker = Thread.new do
             Thread.current[:connection_id] = @connection_id
           Thread.current.abort_on_exception = true  # This will help surface errors
@@ -174,8 +177,7 @@ module LlamaBotRails
     private
 
     def state_builder_class
-      builder_class_name = LlamaBotRails.config.state_builder_class || 'LlamaBotRails::AgentStateBuilder'
-
+      builder_class_name = @agent_state_builder_class
       begin
         builder_class_name.constantize
       rescue NameError => e
